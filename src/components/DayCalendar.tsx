@@ -5,9 +5,13 @@ import {
   MIN_DURATION_MINUTES,
   ScheduleEvent,
   eventDurationMinutes,
+  formatEventTime,
   minutesToTime,
   timeToMinutes,
 } from "@/lib/schedule";
+import { resolveColor } from "@/lib/itemColor";
+
+const MOVE_THRESHOLD = 4; // px, below this a pointer down/up counts as a click
 
 const HOUR_HEIGHT = 48; // px
 const PX_PER_MINUTE = HOUR_HEIGHT / 60;
@@ -19,6 +23,8 @@ const SNAP_MINUTES = 15;
 type Props = {
   events: ScheduleEvent[];
   onUpdateEvent?: (id: string, changes: { time: string; endTime: string }) => void;
+  onEditEvent?: (event: ScheduleEvent) => void;
+  onDropExternal?: (dataTransfer: DataTransfer, time: string) => void;
 };
 
 type PositionedEvent = {
@@ -28,19 +34,25 @@ type PositionedEvent = {
 };
 
 type DragMode = "move" | "resize-top" | "resize-bottom";
+type DragOrigin = "grid" | "allday";
 
 type DragState = {
   id: string;
   mode: DragMode;
+  origin: DragOrigin;
   startY: number;
   startMinutes: number;
   endMinutes: number;
   durationMinutes: number;
   boundsMin: number;
   boundsMax: number;
+  moved: boolean;
+  gridTop: number;
+  overAllDay: boolean;
+  previewMinutes: number | null;
 };
 
-export default function DayCalendar({ events, onUpdateEvent }: Props) {
+export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDropExternal }: Props) {
   const timed = events.filter((e) => e.time);
   const allDay = events.filter((e) => !e.time);
 
@@ -61,13 +73,31 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
   const positioned = layoutEvents(timed);
 
   const [draft, setDraft] = useState<Record<string, { time: string; endTime: string }>>({});
+  const [dropPreviewMinutes, setDropPreviewMinutes] = useState<number | null>(null);
+  const [allDayHighlight, setAllDayHighlight] = useState(false);
   const dragStateRef = useRef<DragState | null>(null);
   const draftRef = useRef<Record<string, { time: string; endTime: string }>>({});
+  const gridRef = useRef<HTMLDivElement>(null);
   const onUpdateEventRef = useRef(onUpdateEvent);
+  const onEditEventRef = useRef(onEditEvent);
+  const eventsRef = useRef(events);
+  const rangeRef = useRef({ start: rangeStartMinutes, end: rangeEndMinutes });
 
   useEffect(() => {
     onUpdateEventRef.current = onUpdateEvent;
   }, [onUpdateEvent]);
+
+  useEffect(() => {
+    onEditEventRef.current = onEditEvent;
+  }, [onEditEvent]);
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+
+  useEffect(() => {
+    rangeRef.current = { start: rangeStartMinutes, end: rangeEndMinutes };
+  }, [rangeStartMinutes, rangeEndMinutes]);
 
   useEffect(() => {
     function handlePointerMove(e: PointerEvent) {
@@ -75,6 +105,42 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
       if (!state) return;
 
       const deltaY = e.clientY - state.startY;
+      if (!state.moved && Math.abs(deltaY) > MOVE_THRESHOLD) {
+        state.moved = true;
+      }
+
+      if (state.origin === "allday") {
+        if (e.clientY >= state.gridTop) {
+          const minutes = minutesFromClientY(
+            e.clientY,
+            state.gridTop,
+            rangeRef.current.start,
+            rangeRef.current.end
+          );
+          state.previewMinutes = minutes;
+          setDropPreviewMinutes(minutes);
+        } else {
+          state.previewMinutes = null;
+          setDropPreviewMinutes(null);
+        }
+        return;
+      }
+
+      // origin === "grid"
+      if (state.mode === "move" && e.clientY < state.gridTop) {
+        state.overAllDay = true;
+        setAllDayHighlight(true);
+        if (draftRef.current[state.id]) {
+          const rest = { ...draftRef.current };
+          delete rest[state.id];
+          draftRef.current = rest;
+          setDraft(rest);
+        }
+        return;
+      }
+      state.overAllDay = false;
+      setAllDayHighlight(false);
+
       const rawDeltaMinutes = deltaY / PX_PER_MINUTE;
       const deltaMinutes = Math.round(rawDeltaMinutes / SNAP_MINUTES) * SNAP_MINUTES;
 
@@ -112,6 +178,28 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
       const state = dragStateRef.current;
       if (!state) return;
       dragStateRef.current = null;
+      setAllDayHighlight(false);
+
+      if (state.origin === "allday") {
+        const minutes = state.previewMinutes;
+        setDropPreviewMinutes(null);
+        if (minutes !== null) {
+          onUpdateEventRef.current?.(state.id, {
+            time: minutesToTime(minutes),
+            endTime: minutesToTime(minutes + MIN_DURATION_MINUTES),
+          });
+        } else if (!state.moved) {
+          const clicked = eventsRef.current.find((ev) => ev.id === state.id);
+          if (clicked) onEditEventRef.current?.(clicked);
+        }
+        return;
+      }
+
+      // origin === "grid"
+      if (state.overAllDay) {
+        onUpdateEventRef.current?.(state.id, { time: "", endTime: "" });
+        return;
+      }
 
       const value = draftRef.current[state.id];
       const rest = { ...draftRef.current };
@@ -121,6 +209,9 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
 
       if (value) {
         onUpdateEventRef.current?.(state.id, value);
+      } else if (!state.moved && state.mode === "move") {
+        const clicked = eventsRef.current.find((ev) => ev.id === state.id);
+        if (clicked) onEditEventRef.current?.(clicked);
       }
     }
 
@@ -134,39 +225,116 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
 
   const handlePointerDown = useCallback(
     (event: ScheduleEvent, mode: DragMode, e: React.PointerEvent) => {
-      if (!onUpdateEventRef.current) return;
+      if (!onUpdateEventRef.current && !onEditEventRef.current) return;
       e.preventDefault();
       e.stopPropagation();
 
       const startMinutes = timeToMinutes(event.time);
       const endMinutes = startMinutes + eventDurationMinutes(event);
+      const gridTop = gridRef.current?.getBoundingClientRect().top ?? 0;
 
       dragStateRef.current = {
         id: event.id,
         mode,
+        origin: "grid",
         startY: e.clientY,
         startMinutes,
         endMinutes,
         durationMinutes: endMinutes - startMinutes,
         boundsMin: rangeStartMinutes,
         boundsMax: rangeEndMinutes,
+        moved: false,
+        gridTop,
+        overAllDay: false,
+        previewMinutes: null,
       };
     },
     [rangeStartMinutes, rangeEndMinutes]
   );
 
+  const handleAllDayPointerDown = useCallback(
+    (event: ScheduleEvent, e: React.PointerEvent) => {
+      if (!onUpdateEventRef.current && !onEditEventRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const gridTop = gridRef.current?.getBoundingClientRect().top ?? 0;
+
+      dragStateRef.current = {
+        id: event.id,
+        mode: "move",
+        origin: "allday",
+        startY: e.clientY,
+        startMinutes: 0,
+        endMinutes: 0,
+        durationMinutes: MIN_DURATION_MINUTES,
+        boundsMin: rangeStartMinutes,
+        boundsMax: rangeEndMinutes,
+        moved: false,
+        gridTop,
+        overAllDay: false,
+        previewMinutes: null,
+      };
+    },
+    [rangeStartMinutes, rangeEndMinutes]
+  );
+
+  function minutesFromPointerY(clientY: number, top: number) {
+    return minutesFromClientY(clientY, top, rangeStartMinutes, rangeEndMinutes);
+  }
+
+  function handleGridDragOver(e: React.DragEvent) {
+    if (!onDropExternal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropPreviewMinutes(minutesFromPointerY(e.clientY, rect.top));
+  }
+
+  function handleGridDrop(e: React.DragEvent) {
+    if (!onDropExternal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const minutes = minutesFromPointerY(e.clientY, rect.top);
+    setDropPreviewMinutes(null);
+    onDropExternal(e.dataTransfer, minutesToTime(minutes));
+  }
+
+  const draggable = Boolean(onUpdateEvent);
+  const showAllDayRow = allDay.length > 0 || draggable;
+
   return (
     <div className="flex flex-col gap-3">
-      {allDay.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {allDay.map((event) => (
-            <span
-              key={event.id}
-              className="rounded-full bg-black/[.06] px-3 py-1 text-xs font-medium dark:bg-white/[.1]"
-            >
-              {event.title}
-            </span>
-          ))}
+      {showAllDayRow && (
+        <div
+          className={`flex min-h-9 flex-wrap items-center gap-2 rounded-md border border-dashed px-2 py-1.5 transition-colors ${
+            allDayHighlight
+              ? "border-black/[.3] bg-black/[.03] dark:border-white/[.4] dark:bg-white/[.05]"
+              : "border-transparent"
+          }`}
+        >
+          {allDay.length === 0 ? (
+            <span className="text-[11px] text-zinc-400">All day</span>
+          ) : (
+            allDay.map((event) => {
+              const interactive = draggable || Boolean(onEditEvent);
+              const color = resolveColor(event.todoId ?? event.id, event.category);
+              return (
+                <div
+                  key={event.id}
+                  onPointerDown={(e) => interactive && handleAllDayPointerDown(event, e)}
+                  style={{ touchAction: draggable ? "none" : undefined }}
+                  className={`rounded-full px-3 py-1 text-xs font-medium select-none ${color.block} ${
+                    interactive ? "cursor-pointer" : "cursor-default"
+                  } ${draggable ? "active:cursor-grabbing" : ""}`}
+                >
+                  {event.title}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
@@ -184,8 +352,12 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
         </div>
 
         <div
+          ref={gridRef}
           className="relative flex-1 border-l border-black/[.08] dark:border-white/[.145]"
           style={{ height: totalHeight }}
+          onDragOver={handleGridDragOver}
+          onDragLeave={() => setDropPreviewMinutes(null)}
+          onDrop={handleGridDrop}
         >
           {hours.map((hour) => (
             <div
@@ -194,6 +366,18 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
               style={{ top: (hour - startHour) * HOUR_HEIGHT }}
             />
           ))}
+
+          {dropPreviewMinutes !== null && (
+            <div
+              className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
+              style={{ top: (dropPreviewMinutes - rangeStartMinutes) * PX_PER_MINUTE }}
+            >
+              <div className="h-0.5 flex-1 bg-foreground" />
+              <span className="ml-1 shrink-0 rounded bg-foreground px-1 text-[10px] font-medium text-background">
+                {formatEventTime(minutesToTime(dropPreviewMinutes))}
+              </span>
+            </div>
+          )}
 
           {positioned.map(({ event, column, columns }) => {
             const draftValue = draft[event.id];
@@ -208,14 +392,17 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
             const height = Math.max(duration * PX_PER_MINUTE, 18);
             const widthPct = 100 / columns;
             const isDragging = Boolean(draftValue);
-            const draggable = Boolean(onUpdateEvent);
+            const interactive = draggable || Boolean(onEditEvent);
+            const color = resolveColor(event.todoId ?? event.id, event.category);
 
             return (
               <div
                 key={event.id}
-                className={`absolute overflow-hidden rounded-md bg-foreground/90 px-2 py-1 text-background ${
+                className={`absolute overflow-hidden rounded-md px-2 py-1 ${color.block} ${
                   isDragging ? "z-10 shadow-lg ring-2 ring-background/50" : ""
-                } ${draggable ? "cursor-grab select-none active:cursor-grabbing" : ""}`}
+                } ${interactive ? "cursor-pointer select-none" : ""} ${
+                  draggable ? "active:cursor-grabbing" : ""
+                }`}
                 style={{
                   top,
                   height,
@@ -224,7 +411,7 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
                   touchAction: draggable ? "none" : undefined,
                 }}
                 onPointerDown={(e) =>
-                  draggable && handlePointerDown(event, "move", e)
+                  interactive && handlePointerDown(event, "move", e)
                 }
               >
                 <p className="truncate text-xs font-medium leading-tight">{event.title}</p>
@@ -248,6 +435,18 @@ export default function DayCalendar({ events, onUpdateEvent }: Props) {
       </div>
     </div>
   );
+}
+
+function minutesFromClientY(
+  clientY: number,
+  top: number,
+  rangeStartMinutes: number,
+  rangeEndMinutes: number
+) {
+  const offsetY = clientY - top;
+  const rawMinutes = rangeStartMinutes + offsetY / PX_PER_MINUTE;
+  const snapped = Math.round(rawMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+  return Math.max(rangeStartMinutes, Math.min(rangeEndMinutes - MIN_DURATION_MINUTES, snapped));
 }
 
 function formatHour(hour: number) {

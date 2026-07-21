@@ -1,12 +1,16 @@
+import { Category } from "@/lib/categories";
+
 export type ScheduleEvent = {
   id: string;
   title: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM, may be empty for all-day
   endTime?: string; // HH:MM, defaults to +1hr from time when absent
+  todoId?: string; // links back to the todo this was scheduled from
+  category?: Category; // copied from the source todo, for color-coding
 };
 
-const DEFAULT_DURATION_MINUTES = 60;
+const DEFAULT_DURATION_MINUTES = 15;
 export const MIN_DURATION_MINUTES = 15;
 
 export const SCHEDULE_STORAGE_KEY = "stits:schedule-events";

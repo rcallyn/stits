@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Productivity Hub",
+  title: "stits",
   description: "Schedule, todos, and everything else in one place.",
 };
 

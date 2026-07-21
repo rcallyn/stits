@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
+import { AnthropicError } from "@anthropic-ai/sdk/core/error";
+import type { AutoParseableOutputFormat } from "@anthropic-ai/sdk/lib/parser";
 
 export const ParsedItemSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -27,3 +30,38 @@ export const ParsedItemSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type ParsedItem = z.infer<typeof ParsedItemSchema>;
+
+/**
+ * The SDK's built-in `zodOutputFormat` helper hardcodes `reused: 'ref'` when
+ * generating JSON schema, which hoists shared subschemas into `$defs` and
+ * `$ref`s. For a discriminated union that becomes `anyOf` + `$defs` at the
+ * same level, which the Claude API rejects ("For 'anyOf', $defs is not
+ * supported"). Generating with `reused: 'inline'` avoids `$defs` entirely.
+ */
+export function parsedItemOutputFormat(): AutoParseableOutputFormat<ParsedItem> {
+  const jsonSchema = transformJSONSchema(
+    z.toJSONSchema(ParsedItemSchema, { reused: "inline" })
+  );
+
+  return {
+    type: "json_schema",
+    schema: { ...jsonSchema },
+    parse: (content: string) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch (error) {
+        throw new AnthropicError(
+          `Failed to parse structured output as JSON: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+      const output = ParsedItemSchema.safeParse(parsed);
+      if (!output.success) {
+        throw new AnthropicError(
+          `Failed to parse structured output: ${output.error.message}`
+        );
+      }
+      return output.data;
+    },
+  };
+}

@@ -1,7 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell"
+      "PowerShell",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"console.log\\(require\\('@anthropic-ai/sdk/package.json'\\).version\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(npx tsc *)",
+      "Bash(git checkout *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(tskill node *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git ls-files *)",
+      "Bash(node --version)",
+      "Bash(node -v)",
+      "Bash(npm test *)",
+      "Bash(npm *)"
     ]
   }
 }

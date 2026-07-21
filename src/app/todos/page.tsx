@@ -3,11 +3,15 @@
 import { FormEvent, useState } from "react";
 import { useTodos } from "@/hooks/useTodos";
 import { formatEventDate } from "@/lib/schedule";
+import { Todo } from "@/lib/todos";
+import TodoEditModal from "@/components/TodoEditModal";
+import { resolveColor } from "@/lib/itemColor";
 
 export default function TodosPage() {
-  const { todos, loaded, addTodo, toggleTodo, removeTodo } = useTodos();
+  const { todos, loaded, addTodo, toggleTodo, updateTodo, removeTodo } = useTodos();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -78,22 +82,31 @@ export default function TodosPage() {
                   onChange={() => toggleTodo(todo.id)}
                   className="h-4 w-4"
                 />
-                <div>
-                  <p
-                    className={
-                      todo.done
-                        ? "font-medium line-through text-zinc-400"
-                        : "font-medium"
-                    }
-                  >
-                    {todo.title}
-                  </p>
+                <button
+                  type="button"
+                  onClick={() => setEditingTodo(todo)}
+                  className="flex-1 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${resolveColor(todo.id, todo.category).dot}`}
+                    />
+                    <p
+                      className={
+                        todo.done
+                          ? "font-medium line-through text-zinc-400"
+                          : "font-medium"
+                      }
+                    >
+                      {todo.title}
+                    </p>
+                  </div>
                   {todo.dueDate && (
                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
                       Due {formatEventDate(todo.dueDate)}
                     </p>
                   )}
-                </div>
+                </button>
               </label>
               <button
                 onClick={() => removeTodo(todo.id)}
@@ -105,6 +118,15 @@ export default function TodosPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {editingTodo && (
+        <TodoEditModal
+          todo={editingTodo}
+          onSave={(id, changes) => updateTodo(id, changes)}
+          onDelete={removeTodo}
+          onClose={() => setEditingTodo(null)}
+        />
       )}
     </main>
   );

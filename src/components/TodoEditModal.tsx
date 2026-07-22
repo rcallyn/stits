@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Modal from "@/components/Modal";
 import { Todo } from "@/lib/todos";
 import { CATEGORY_LIST, isCategory } from "@/lib/categories";
+import { useCategoryLabels } from "@/hooks/useCategoryLabels";
 
 const fieldClass =
   "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props) {
+  const { labelFor } = useCategoryLabels();
   const [title, setTitle] = useState(todo.title);
   const [dueDate, setDueDate] = useState(todo.dueDate ?? "");
   const [done, setDone] = useState(todo.done);
@@ -64,9 +66,9 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
               onChange={(e) => setCategory(e.target.value)}
               className={fieldClass}
             >
-              {CATEGORY_LIST.map(([key, style]) => (
+              {CATEGORY_LIST.map(([key]) => (
                 <option key={key} value={key}>
-                  {style.label}
+                  {labelFor(key)}
                 </option>
               ))}
             </select>

@@ -78,7 +78,7 @@ export function useScheduleEvents() {
   const updateEvent = useCallback(
     (
       id: string,
-      changes: Partial<Pick<ScheduleEvent, "title" | "date" | "time" | "endTime">>
+      changes: Partial<Pick<ScheduleEvent, "title" | "date" | "time" | "endTime" | "done" | "notes">>
     ) => {
       setStore(
         sortEvents(store.map((event) => (event.id === id ? { ...event, ...changes } : event)))

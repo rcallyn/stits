@@ -4,14 +4,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MIN_DURATION_MINUTES,
   ScheduleEvent,
+  ScheduleEventKind,
   eventDurationMinutes,
   formatEventTime,
   minutesToTime,
+  scheduleEventKind,
   timeToMinutes,
 } from "@/lib/schedule";
-import { resolveColor } from "@/lib/itemColor";
+import { Category } from "@/lib/categories";
+import { ColorStyle, resolveColor } from "@/lib/itemColor";
+import { NOTE_DRAG_TYPE } from "@/lib/dnd";
 
 const MOVE_THRESHOLD = 4; // px, below this a pointer down/up counts as a click
+
+// Independent notes: 20% opaque body. Todos: 80% opaque body. Plain events:
+// ~90% opaque. The opacity gradient — not an icon, border, or shape — is
+// what tells the three kinds apart on the schedule.
+function blockClassFor(kind: ScheduleEventKind, color: ColorStyle): string {
+  if (kind === "note") return color.soft;
+  if (kind === "todo") return color.strong;
+  return color.solid;
+}
 
 const HOUR_HEIGHT = 48; // px
 const PX_PER_MINUTE = HOUR_HEIGHT / 60;
@@ -25,6 +38,19 @@ type Props = {
   onUpdateEvent?: (id: string, changes: { time: string; endTime: string }) => void;
   onEditEvent?: (event: ScheduleEvent) => void;
   onDropExternal?: (dataTransfer: DataTransfer, time: string) => void;
+  isEventDone?: (event: ScheduleEvent) => boolean;
+  onToggleDone?: (event: ScheduleEvent) => void;
+  onDeleteEvent?: (event: ScheduleEvent) => void;
+  placementActive?: boolean;
+  onPlaceAtTime?: (time: string) => void;
+  onPlaceAllDay?: () => void;
+  onPlaceOnEvent?: (event: ScheduleEvent) => void;
+  onAddNoteLine?: (event: ScheduleEvent, text: string) => void;
+  onEditNoteLine?: (event: ScheduleEvent, lineId: string, text: string) => void;
+  onRemoveNoteLine?: (event: ScheduleEvent, lineId: string) => void;
+  onMergeNoteEvent?: (source: ScheduleEvent, target: ScheduleEvent) => void;
+  onDropNoteOnEvent?: (event: ScheduleEvent, noteId: string) => void;
+  categoryColors?: Partial<Record<Category, string>>;
 };
 
 type PositionedEvent = {
@@ -35,6 +61,7 @@ type PositionedEvent = {
 
 type DragMode = "move" | "resize-top" | "resize-bottom";
 type DragOrigin = "grid" | "allday";
+type ClickTarget = { kind: "note"; lineId: string } | { kind: "newNote" };
 
 type DragState = {
   id: string;
@@ -50,9 +77,30 @@ type DragState = {
   gridTop: number;
   overAllDay: boolean;
   previewMinutes: number | null;
+  isNoteEvent: boolean;
+  mergeTargetId: string | null;
+  clickTarget: ClickTarget | null;
 };
 
-export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDropExternal }: Props) {
+export default function DayCalendar({
+  events,
+  onUpdateEvent,
+  onEditEvent,
+  onDropExternal,
+  isEventDone,
+  onToggleDone,
+  onDeleteEvent,
+  placementActive,
+  onPlaceAtTime,
+  onPlaceAllDay,
+  onPlaceOnEvent,
+  onAddNoteLine,
+  onEditNoteLine,
+  onRemoveNoteLine,
+  onMergeNoteEvent,
+  onDropNoteOnEvent,
+  categoryColors,
+}: Props) {
   const timed = events.filter((e) => e.time);
   const allDay = events.filter((e) => !e.time);
 
@@ -75,12 +123,16 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
   const [draft, setDraft] = useState<Record<string, { time: string; endTime: string }>>({});
   const [dropPreviewMinutes, setDropPreviewMinutes] = useState<number | null>(null);
   const [allDayHighlight, setAllDayHighlight] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<{ eventId: string; lineId: string } | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const draftRef = useRef<Record<string, { time: string; endTime: string }>>({});
   const gridRef = useRef<HTMLDivElement>(null);
   const onUpdateEventRef = useRef(onUpdateEvent);
   const onEditEventRef = useRef(onEditEvent);
+  const onMergeNoteEventRef = useRef(onMergeNoteEvent);
   const eventsRef = useRef(events);
+  const positionedRef = useRef(positioned);
   const rangeRef = useRef({ start: rangeStartMinutes, end: rangeEndMinutes });
 
   useEffect(() => {
@@ -92,14 +144,35 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
   }, [onEditEvent]);
 
   useEffect(() => {
+    onMergeNoteEventRef.current = onMergeNoteEvent;
+  }, [onMergeNoteEvent]);
+
+  useEffect(() => {
     eventsRef.current = events;
   }, [events]);
+
+  useEffect(() => {
+    positionedRef.current = positioned;
+  }, [positioned]);
 
   useEffect(() => {
     rangeRef.current = { start: rangeStartMinutes, end: rangeEndMinutes };
   }, [rangeStartMinutes, rangeEndMinutes]);
 
   useEffect(() => {
+    function findMergeTarget(pointerY: number, draggedId: string): string | null {
+      for (const { event } of positionedRef.current) {
+        if (event.id === draggedId) continue;
+        if (scheduleEventKind(event) === "todo") continue;
+        const start = timeToMinutes(event.time);
+        const duration = eventDurationMinutes(event);
+        const top = (start - rangeRef.current.start) * PX_PER_MINUTE;
+        const height = Math.max(duration * PX_PER_MINUTE, 18);
+        if (pointerY >= top && pointerY <= top + height) return event.id;
+      }
+      return null;
+    }
+
     function handlePointerMove(e: PointerEvent) {
       const state = dragStateRef.current;
       if (!state) return;
@@ -130,6 +203,10 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
       if (state.mode === "move" && e.clientY < state.gridTop) {
         state.overAllDay = true;
         setAllDayHighlight(true);
+        if (state.mergeTargetId) {
+          state.mergeTargetId = null;
+          setMergeTargetId(null);
+        }
         if (draftRef.current[state.id]) {
           const rest = { ...draftRef.current };
           delete rest[state.id];
@@ -140,6 +217,15 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
       }
       state.overAllDay = false;
       setAllDayHighlight(false);
+
+      if (state.mode === "move" && state.isNoteEvent) {
+        const pointerY = e.clientY - state.gridTop;
+        const targetId = findMergeTarget(pointerY, state.id);
+        if (targetId !== state.mergeTargetId) {
+          state.mergeTargetId = targetId;
+          setMergeTargetId(targetId);
+        }
+      }
 
       const rawDeltaMinutes = deltaY / PX_PER_MINUTE;
       const deltaMinutes = Math.round(rawDeltaMinutes / SNAP_MINUTES) * SNAP_MINUTES;
@@ -201,6 +287,20 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
         return;
       }
 
+      if (state.isNoteEvent && state.mergeTargetId) {
+        const targetId = state.mergeTargetId;
+        setMergeTargetId(null);
+        const rest = { ...draftRef.current };
+        delete rest[state.id];
+        draftRef.current = rest;
+        setDraft(rest);
+
+        const source = eventsRef.current.find((ev) => ev.id === state.id);
+        const target = eventsRef.current.find((ev) => ev.id === targetId);
+        if (source && target) onMergeNoteEventRef.current?.(source, target);
+        return;
+      }
+
       const value = draftRef.current[state.id];
       const rest = { ...draftRef.current };
       delete rest[state.id];
@@ -211,7 +311,15 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
         onUpdateEventRef.current?.(state.id, value);
       } else if (!state.moved && state.mode === "move") {
         const clicked = eventsRef.current.find((ev) => ev.id === state.id);
-        if (clicked) onEditEventRef.current?.(clicked);
+        if (!clicked) {
+          // no-op
+        } else if (state.clickTarget?.kind === "note") {
+          setEditingNote({ eventId: clicked.id, lineId: state.clickTarget.lineId });
+        } else if (state.clickTarget?.kind === "newNote") {
+          setEditingNote({ eventId: clicked.id, lineId: "new" });
+        } else {
+          onEditEventRef.current?.(clicked);
+        }
       }
     }
 
@@ -224,7 +332,8 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
   }, []);
 
   const handlePointerDown = useCallback(
-    (event: ScheduleEvent, mode: DragMode, e: React.PointerEvent) => {
+    (event: ScheduleEvent, mode: DragMode, e: React.PointerEvent, clickTarget: ClickTarget | null = null) => {
+      if (placementActive) return;
       if (!onUpdateEventRef.current && !onEditEventRef.current) return;
       e.preventDefault();
       e.stopPropagation();
@@ -247,13 +356,17 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
         gridTop,
         overAllDay: false,
         previewMinutes: null,
+        isNoteEvent: Boolean(event.isNoteEvent),
+        mergeTargetId: null,
+        clickTarget,
       };
     },
-    [rangeStartMinutes, rangeEndMinutes]
+    [rangeStartMinutes, rangeEndMinutes, placementActive]
   );
 
   const handleAllDayPointerDown = useCallback(
     (event: ScheduleEvent, e: React.PointerEvent) => {
+      if (placementActive) return;
       if (!onUpdateEventRef.current && !onEditEventRef.current) return;
       e.preventDefault();
       e.stopPropagation();
@@ -274,9 +387,12 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
         gridTop,
         overAllDay: false,
         previewMinutes: null,
+        isNoteEvent: Boolean(event.isNoteEvent),
+        mergeTargetId: null,
+        clickTarget: null,
       };
     },
-    [rangeStartMinutes, rangeEndMinutes]
+    [rangeStartMinutes, rangeEndMinutes, placementActive]
   );
 
   function minutesFromPointerY(clientY: number, top: number) {
@@ -302,35 +418,84 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
     onDropExternal(e.dataTransfer, minutesToTime(minutes));
   }
 
+  function handleGridClick(e: React.MouseEvent) {
+    if (!placementActive || !onPlaceAtTime) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    onPlaceAtTime(minutesToTime(minutesFromPointerY(e.clientY, rect.top)));
+  }
+
   const draggable = Boolean(onUpdateEvent);
-  const showAllDayRow = allDay.length > 0 || draggable;
+  const showAllDayRow = allDay.length > 0 || draggable || placementActive;
+  const placing = Boolean(placementActive);
 
   return (
     <div className="flex flex-col gap-3">
       {showAllDayRow && (
         <div
+          onClick={() => placing && onPlaceAllDay?.()}
           className={`flex min-h-9 flex-wrap items-center gap-2 rounded-md border border-dashed px-2 py-1.5 transition-colors ${
+            placing ? "cursor-crosshair" : ""
+          } ${
             allDayHighlight
               ? "border-black/[.3] bg-black/[.03] dark:border-white/[.4] dark:bg-white/[.05]"
               : "border-transparent"
           }`}
         >
           {allDay.length === 0 ? (
-            <span className="text-[11px] text-zinc-400">All day</span>
+            <span className="text-[11px] text-zinc-400">
+              {placing ? "Click to attach the note here (all day)" : "All day"}
+            </span>
           ) : (
             allDay.map((event) => {
               const interactive = draggable || Boolean(onEditEvent);
-              const color = resolveColor(event.todoId ?? event.id, event.category);
+              const color = resolveColor(event.todoId ?? event.id, event.category, categoryColors);
+              const kind = scheduleEventKind(event);
+              const done = isEventDone?.(event) ?? false;
               return (
                 <div
                   key={event.id}
-                  onPointerDown={(e) => interactive && handleAllDayPointerDown(event, e)}
+                  onPointerDown={(e) => !placing && interactive && handleAllDayPointerDown(event, e)}
+                  onClick={(e) => {
+                    if (!placing) return;
+                    e.stopPropagation();
+                    onPlaceOnEvent?.(event);
+                  }}
+                  onDragOver={(e) => {
+                    if (kind === "todo" || !onDropNoteOnEvent || !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
+                      return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = "copy";
+                  }}
+                  onDrop={(e) => {
+                    if (kind === "todo" || !onDropNoteOnEvent) return;
+                    const noteId = e.dataTransfer.getData(NOTE_DRAG_TYPE);
+                    if (!noteId) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDropNoteOnEvent(event, noteId);
+                  }}
                   style={{ touchAction: draggable ? "none" : undefined }}
-                  className={`rounded-full px-3 py-1 text-xs font-medium select-none ${color.block} ${
-                    interactive ? "cursor-pointer" : "cursor-default"
-                  } ${draggable ? "active:cursor-grabbing" : ""}`}
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium select-none ${blockClassFor(
+                    kind,
+                    color
+                  )} ${kind === "note" ? "rounded-md" : "rounded-full"} ${
+                    placing ? "cursor-crosshair" : interactive ? "cursor-pointer" : "cursor-default"
+                  } ${draggable && !placing ? "active:cursor-grabbing" : ""}`}
                 >
-                  {event.title}
+                  {kind === "todo" && onToggleDone && (
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      onChange={() => onToggleDone(event)}
+                      style={{ pointerEvents: placing ? "none" : undefined }}
+                      onPointerDown={(e) => !placing && e.stopPropagation()}
+                      onClick={(e) => !placing && e.stopPropagation()}
+                      aria-label={done ? `Mark ${event.title} not done` : `Mark ${event.title} done`}
+                      className="h-3 w-3 shrink-0 cursor-pointer"
+                    />
+                  )}
+                  <span className={done ? "line-through opacity-70" : ""}>{event.title}</span>
                 </div>
               );
             })
@@ -353,11 +518,14 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
 
         <div
           ref={gridRef}
-          className="relative flex-1 border-l border-black/[.08] dark:border-white/[.145]"
+          className={`relative flex-1 border-l border-black/[.08] dark:border-white/[.145] ${
+            placing ? "cursor-crosshair" : ""
+          }`}
           style={{ height: totalHeight }}
           onDragOver={handleGridDragOver}
           onDragLeave={() => setDropPreviewMinutes(null)}
           onDrop={handleGridDrop}
+          onClick={handleGridClick}
         >
           {hours.map((hour) => (
             <div
@@ -393,16 +561,26 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
             const widthPct = 100 / columns;
             const isDragging = Boolean(draftValue);
             const interactive = draggable || Boolean(onEditEvent);
-            const color = resolveColor(event.todoId ?? event.id, event.category);
+            const color = resolveColor(event.todoId ?? event.id, event.category, categoryColors);
+            const done = isEventDone?.(event) ?? false;
+            const kind = scheduleEventKind(event);
+            const notes = event.notes ?? [];
+            const showNotesArea = notes.length > 0 || (!placing && Boolean(onAddNoteLine));
 
             return (
               <div
                 key={event.id}
-                className={`absolute overflow-hidden rounded-md px-2 py-1 ${color.block} ${
-                  isDragging ? "z-10 shadow-lg ring-2 ring-background/50" : ""
-                } ${interactive ? "cursor-pointer select-none" : ""} ${
-                  draggable ? "active:cursor-grabbing" : ""
-                }`}
+                className={`group absolute overflow-hidden px-2 py-1 ${blockClassFor(kind, color)} ${
+                  kind === "note" ? "rounded-sm" : "rounded-md"
+                } ${isDragging ? "z-10 shadow-lg ring-2 ring-background/50" : ""} ${
+                  mergeTargetId === event.id ? "z-10 ring-2 ring-white" : ""
+                } ${
+                  placing
+                    ? "cursor-crosshair"
+                    : interactive
+                      ? "cursor-pointer select-none"
+                      : ""
+                } ${draggable && !placing ? "active:cursor-grabbing" : ""}`}
                 style={{
                   top,
                   height,
@@ -411,12 +589,137 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
                   touchAction: draggable ? "none" : undefined,
                 }}
                 onPointerDown={(e) =>
-                  interactive && handlePointerDown(event, "move", e)
+                  !placing && interactive && handlePointerDown(event, "move", e)
                 }
+                onClick={(e) => {
+                  if (!placing) return;
+                  e.stopPropagation();
+                  onPlaceOnEvent?.(event);
+                }}
+                onDragOver={(e) => {
+                  if (kind === "todo" || !onDropNoteOnEvent || !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
+                    return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = "copy";
+                }}
+                onDrop={(e) => {
+                  if (kind === "todo" || !onDropNoteOnEvent) return;
+                  const noteId = e.dataTransfer.getData(NOTE_DRAG_TYPE);
+                  if (!noteId) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDropNoteOnEvent(event, noteId);
+                }}
               >
-                <p className="truncate text-xs font-medium leading-tight">{event.title}</p>
+                <div className="flex items-center gap-1">
+                  {kind === "todo" && onToggleDone && (
+                    <input
+                      type="checkbox"
+                      checked={done}
+                      onChange={() => onToggleDone(event)}
+                      style={{ pointerEvents: placing ? "none" : undefined }}
+                      onPointerDown={(e) => !placing && e.stopPropagation()}
+                      onClick={(e) => !placing && e.stopPropagation()}
+                      aria-label={done ? `Mark ${event.title} not done` : `Mark ${event.title} done`}
+                      className="relative z-20 h-3 w-3 shrink-0 cursor-pointer"
+                    />
+                  )}
+                  <p
+                    className={`truncate text-xs font-medium leading-tight ${
+                      done ? "line-through opacity-70" : ""
+                    }`}
+                  >
+                    {event.title}
+                  </p>
+                </div>
 
-                {draggable && (
+                {showNotesArea && (
+                  <div className="mt-0.5 flex flex-col gap-0.5">
+                    {notes.map((note) =>
+                      !placing &&
+                      editingNote?.eventId === event.id &&
+                      editingNote?.lineId === note.id ? (
+                        <input
+                          key={note.id}
+                          autoFocus
+                          defaultValue={note.text}
+                          onBlur={(e) => {
+                            onEditNoteLine?.(event, note.id, e.target.value);
+                            setEditingNote(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                            if (e.key === "Escape") setEditingNote(null);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className="w-full rounded bg-black/25 px-1 py-0.5 text-[10px] leading-tight text-white outline-none"
+                        />
+                      ) : (
+                        <div key={note.id} className="group/note flex items-center gap-1">
+                          {!placing && onRemoveNoteLine && (
+                            <button
+                              type="button"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveNoteLine(event, note.id);
+                              }}
+                              aria-label="Remove note from this event"
+                              title="Remove from this event"
+                              className="flex h-2.5 w-2.5 shrink-0 items-center justify-center text-[9px] leading-none text-white/0 transition-opacity group-hover/note:text-white/70 hover:!text-white"
+                            >
+                              ✕
+                            </button>
+                          )}
+                          <p
+                            onPointerDown={(e) =>
+                              !placing &&
+                              interactive &&
+                              handlePointerDown(event, "move", e, { kind: "note", lineId: note.id })
+                            }
+                            className={`min-w-0 flex-1 truncate text-[10px] leading-tight opacity-80 ${
+                              !placing ? "cursor-text hover:opacity-100" : ""
+                            }`}
+                          >
+                            {note.text}
+                          </p>
+                        </div>
+                      )
+                    )}
+                    {!placing &&
+                      onAddNoteLine &&
+                      (editingNote?.eventId === event.id && editingNote?.lineId === "new" ? (
+                        <input
+                          autoFocus
+                          onBlur={(e) => {
+                            onAddNoteLine(event, e.target.value);
+                            setEditingNote(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                            if (e.key === "Escape") setEditingNote(null);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          placeholder="Type a note…"
+                          className="w-full rounded bg-black/25 px-1 py-0.5 text-[10px] leading-tight text-white outline-none placeholder:text-white/50"
+                        />
+                      ) : (
+                        <div
+                          onPointerDown={(e) =>
+                            interactive && handlePointerDown(event, "move", e, { kind: "newNote" })
+                          }
+                          className="h-2.5 cursor-text text-[9px] italic leading-tight text-white/0 group-hover:text-white/50"
+                        >
+                          + note
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {draggable && !placing && (
                   <>
                     <div
                       className="absolute inset-x-0 top-0 h-2 cursor-ns-resize"
@@ -427,6 +730,22 @@ export default function DayCalendar({ events, onUpdateEvent, onEditEvent, onDrop
                       onPointerDown={(e) => handlePointerDown(event, "resize-bottom", e)}
                     />
                   </>
+                )}
+
+                {onDeleteEvent && !placing && (
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteEvent(event);
+                    }}
+                    aria-label={`Remove ${event.title} from schedule`}
+                    title="Remove from schedule"
+                    className="absolute right-0.5 top-0.5 z-20 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-black/25 text-[9px] leading-none text-white opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
                 )}
               </div>
             );

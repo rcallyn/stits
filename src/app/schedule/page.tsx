@@ -3,6 +3,7 @@
 import { DragEvent, FormEvent, useState } from "react";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useTodos } from "@/hooks/useTodos";
+import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { formatEventDate, formatEventTime, todayISODate, ScheduleEvent } from "@/lib/schedule";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
@@ -16,6 +17,7 @@ const fieldClass =
 export default function SchedulePage() {
   const { events, loaded, addEvent, removeEvent, updateEvent } = useScheduleEvents();
   const { todos, toggleTodo, removeTodo } = useTodos();
+  const { overrides: categoryColors } = useCategoryColors();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -182,7 +184,7 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`h-2 w-2 shrink-0 rounded-full ${
-                          resolveColor(event.todoId ?? event.id, event.category).dot
+                          resolveColor(event.todoId ?? event.id, event.category, categoryColors).dot
                         }`}
                       />
                       <p className="truncate font-medium">{event.title}</p>
@@ -253,7 +255,7 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`h-2 w-2 shrink-0 rounded-full ${
-                          resolveColor(todo.id, todo.category).dot
+                          resolveColor(todo.id, todo.category, categoryColors).dot
                         }`}
                       />
                       <p

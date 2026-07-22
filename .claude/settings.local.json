@@ -20,7 +20,11 @@
       "Bash(node --version)",
       "Bash(node -v)",
       "Bash(npm test *)",
-      "Bash(npm *)"
+      "Bash(npm *)",
+      "Bash(curl -s http://localhost:3000/api/quick-add -o /dev/null -w \"server responding: %{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/quick-add -H 'Content-Type: application/json' -d '{\"text\":\"dentist appointment tomorrow at 3pm\",\"now\":\"Wed Jul 22 2026 09:00:00 GMT-0500\",\"history\":[]}')",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")"
     ]
   }
 }

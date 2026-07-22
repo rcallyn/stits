@@ -12,9 +12,16 @@ type Props = {
   onSave: (id: string, changes: { title: string; date: string; time: string; endTime?: string }) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  onRemoveNoteLine?: (eventId: string, lineId: string) => void;
 };
 
-export default function EventEditModal({ event, onSave, onDelete, onClose }: Props) {
+export default function EventEditModal({
+  event,
+  onSave,
+  onDelete,
+  onClose,
+  onRemoveNoteLine,
+}: Props) {
   const [title, setTitle] = useState(event.title);
   const [date, setDate] = useState(event.date);
   const [time, setTime] = useState(event.time);
@@ -76,6 +83,26 @@ export default function EventEditModal({ event, onSave, onDelete, onClose }: Pro
             />
           </label>
         </div>
+
+        {event.notes && event.notes.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-md border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]">
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">📝 Notes</p>
+            {event.notes.map((note) => (
+              <div key={note.id} className="flex items-start justify-between gap-2">
+                <p className="flex-1">{note.text}</p>
+                {onRemoveNoteLine && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveNoteLine(event.id, note.id)}
+                    className="shrink-0 text-xs text-zinc-400 transition-colors hover:text-red-500"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-2 flex items-center justify-between">
           <button

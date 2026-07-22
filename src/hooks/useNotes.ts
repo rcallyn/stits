@@ -63,9 +63,13 @@ export function useNotes() {
     );
   }, []);
 
+  const updateNote = useCallback((id: string, changes: Partial<Omit<Note, "id" | "createdAt">>) => {
+    setStore(sortNotes(store.map((note) => (note.id === id ? { ...note, ...changes } : note))));
+  }, []);
+
   const removeNote = useCallback((id: string) => {
     setStore(store.filter((note) => note.id !== id));
   }, []);
 
-  return { notes, loaded, addNote, removeNote };
+  return { notes, loaded, addNote, updateNote, removeNote };
 }

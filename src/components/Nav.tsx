@@ -8,7 +8,6 @@ const links = [
   { href: "/schedule", label: "Schedule" },
   { href: "/todos", label: "Todos" },
   { href: "/other", label: "Other" },
-  { href: "/notes", label: "Notes" },
 ];
 
 export default function Nav() {
@@ -17,7 +16,9 @@ export default function Nav() {
   return (
     <header className="border-b border-black/[.08] dark:border-white/[.145]">
       <nav className="mx-auto flex max-w-3xl items-center gap-6 px-6 py-4">
-        <span className="font-semibold tracking-tight">stits</span>
+        <Link href="/" className="font-semibold tracking-tight">
+          stits
+        </Link>
         <div className="flex gap-4 text-sm">
           {links.map(({ href, label }) => {
             const active = pathname === href;

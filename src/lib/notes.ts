@@ -1,12 +1,11 @@
 import { Category } from "@/lib/categories";
 
-export type NoteTag = Category | "other";
+export type NoteTag = Category;
 
 export type Note = {
   id: string;
   text: string;
   tag: NoteTag;
-  otherTitle?: string; // only set when tag === "other"
   createdAt: string; // ISO timestamp
 };
 

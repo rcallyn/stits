@@ -6,9 +6,11 @@ import { useTodos } from "@/hooks/useTodos";
 import { ParsedItem } from "@/lib/quickAdd";
 import { formatEventDate, formatEventTime } from "@/lib/schedule";
 
+const MAX_HISTORY_TITLES = 100;
+
 export default function QuickAdd() {
-  const { addEvent } = useScheduleEvents();
-  const { addTodo } = useTodos();
+  const { events, addEvent } = useScheduleEvents();
+  const { todos, addTodo } = useTodos();
   const [text, setText] = useState("");
   const [status, setStatus] = useState<
     | { state: "idle" }
@@ -23,10 +25,14 @@ export default function QuickAdd() {
 
     setStatus({ state: "loading" });
     try {
+      const history = Array.from(
+        new Set([...events.map((e) => e.title), ...todos.map((t) => t.title)])
+      ).slice(0, MAX_HISTORY_TITLES);
+
       const res = await fetch("/api/quick-add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, now: new Date().toString() }),
+        body: JSON.stringify({ text, now: new Date().toString(), history }),
       });
       const data = await res.json();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, FormEvent, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTodos } from "@/hooks/useTodos";
 import { useNotes } from "@/hooks/useNotes";
@@ -8,14 +8,15 @@ import { usePendingNoteId } from "@/hooks/usePendingNote";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { useCategoryLabels } from "@/hooks/useCategoryLabels";
 import { useCategoryOrder } from "@/hooks/useCategoryOrder";
-import { formatEventDate } from "@/lib/schedule";
 import { formatNoteTimestamp, Note } from "@/lib/notes";
 import { Todo } from "@/lib/todos";
 import { Category, CATEGORY_LIST, isCategory } from "@/lib/categories";
 import TodoEditModal from "@/components/TodoEditModal";
+import TodoMeta from "@/components/TodoMeta";
 import ColorSwatchPicker from "@/components/ColorSwatchPicker";
 import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
+import { applyBackup, downloadBackup, isBackupData } from "@/lib/backup";
 
 const fieldClass =
   "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
@@ -24,7 +25,7 @@ type Kind = "todo" | "note";
 
 export default function OtherPage() {
   const { todos, loaded: todosLoaded, addTodo, toggleTodo, updateTodo, removeTodo } = useTodos();
-  const { notes, loaded: notesLoaded, addNote, removeNote } = useNotes();
+  const { notes, loaded: notesLoaded, addNote, removeNote, togglePinNote } = useNotes();
   const { setPendingNoteId } = usePendingNoteId();
   const { overrides: categoryColors, setCategoryColor } = useCategoryColors();
   const { labelFor, setCategoryLabel } = useCategoryLabels();
@@ -34,6 +35,33 @@ export default function OtherPage() {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<Category | null>(null);
   const [editingLabel, setEditingLabel] = useState<Category | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!isBackupData(parsed)) {
+          window.alert("That file doesn't look like a stits backup.");
+          return;
+        }
+        if (
+          window.confirm(
+            "Importing will replace all current todos, events, and notes with the contents of this backup. Continue?"
+          )
+        ) {
+          applyBackup(parsed);
+        }
+      } catch {
+        window.alert("Couldn't read that file as JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }
 
   const [kind, setKind] = useState<Kind>("todo");
   const [content, setContent] = useState("");
@@ -245,11 +273,7 @@ export default function OtherPage() {
                               {todo.title}
                             </p>
                           </div>
-                          {todo.dueDate && (
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                              Due {formatEventDate(todo.dueDate)}
-                            </p>
-                          )}
+                          <TodoMeta todo={todo} />
                         </button>
                       </label>
                       <button
@@ -275,13 +299,27 @@ export default function OtherPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm">{note.text}</p>
-                        <button
-                          onClick={() => removeNote(note.id)}
-                          className="shrink-0 text-xs text-zinc-400 transition-colors hover:text-red-500"
-                          aria-label="Delete note"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            onClick={() => togglePinNote(note.id)}
+                            className={`text-xs transition-colors ${
+                              note.pinned
+                                ? "text-amber-500"
+                                : "text-zinc-400 hover:text-amber-500"
+                            }`}
+                            aria-label={note.pinned ? "Unpin note" : "Pin note"}
+                            title={note.pinned ? "Unpin" : "Pin"}
+                          >
+                            {note.pinned ? "★" : "☆"}
+                          </button>
+                          <button
+                            onClick={() => removeNote(note.id)}
+                            className="text-xs text-zinc-400 transition-colors hover:text-red-500"
+                            aria-label="Delete note"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] text-zinc-400">
@@ -308,6 +346,37 @@ export default function OtherPage() {
           </div>
         </section>
       ))}
+
+      <section className="rounded-xl border border-black/[.08] p-5 dark:border-white/[.145]">
+        <h2 className="text-sm font-semibold">Data</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Everything here lives only in this browser. Export a backup periodically so you don&apos;t
+          lose it.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={downloadBackup}
+            className="rounded-md border border-black/[.12] px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+          >
+            Export backup
+          </button>
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            className="rounded-md border border-black/[.12] px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+          >
+            Import backup
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
+        </div>
+      </section>
 
       {editingTodo && (
         <TodoEditModal

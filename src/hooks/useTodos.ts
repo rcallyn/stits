@@ -61,13 +61,32 @@ export function useTodos() {
 
   const toggleTodo = useCallback((id: string) => {
     setStore(
-      sortTodos(store.map((todo) => (todo.id === id ? { ...todo, done: !todo.done } : todo)))
+      sortTodos(
+        store.map((todo) =>
+          todo.id === id
+            ? {
+                ...todo,
+                done: !todo.done,
+                completedAt: !todo.done ? new Date().toISOString() : undefined,
+              }
+            : todo
+        )
+      )
     );
   }, []);
 
   const updateTodo = useCallback((id: string, changes: Partial<Omit<Todo, "id">>) => {
     setStore(
-      sortTodos(store.map((todo) => (todo.id === id ? { ...todo, ...changes } : todo)))
+      sortTodos(
+        store.map((todo) => {
+          if (todo.id !== id) return todo;
+          const next = { ...todo, ...changes };
+          if (changes.done !== undefined && changes.done !== todo.done) {
+            next.completedAt = changes.done ? new Date().toISOString() : undefined;
+          }
+          return next;
+        })
+      )
     );
   }, []);
 
@@ -76,5 +95,22 @@ export function useTodos() {
     removeEventsByTodoId(id);
   }, []);
 
-  return { todos, loaded, addTodo, toggleTodo, updateTodo, removeTodo };
+  const toggleSubtask = useCallback((todoId: string, subtaskId: string) => {
+    setStore(
+      sortTodos(
+        store.map((todo) =>
+          todo.id === todoId
+            ? {
+                ...todo,
+                subtasks: (todo.subtasks ?? []).map((s) =>
+                  s.id === subtaskId ? { ...s, done: !s.done } : s
+                ),
+              }
+            : todo
+        )
+      )
+    );
+  }, []);
+
+  return { todos, loaded, addTodo, toggleTodo, updateTodo, removeTodo, toggleSubtask };
 }

@@ -71,5 +71,11 @@ export function useNotes() {
     setStore(store.filter((note) => note.id !== id));
   }, []);
 
-  return { notes, loaded, addNote, updateNote, removeNote };
+  const togglePinNote = useCallback((id: string) => {
+    setStore(
+      sortNotes(store.map((note) => (note.id === id ? { ...note, pinned: !note.pinned } : note)))
+    );
+  }, []);
+
+  return { notes, loaded, addNote, updateNote, removeNote, togglePinNote };
 }

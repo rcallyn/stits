@@ -80,6 +80,7 @@ type DragState = {
   isNoteEvent: boolean;
   mergeTargetId: string | null;
   clickTarget: ClickTarget | null;
+  locked: boolean;
 };
 
 export default function DayCalendar({
@@ -181,6 +182,11 @@ export default function DayCalendar({
       if (!state.moved && Math.abs(deltaY) > MOVE_THRESHOLD) {
         state.moved = true;
       }
+
+      // Recurring occurrences are virtual — moving/resizing one doesn't map
+      // to a single stored event, so dragging is a no-op; a stationary click
+      // still reaches pointerup below and opens the edit modal for the series.
+      if (state.locked) return;
 
       if (state.origin === "allday") {
         if (e.clientY >= state.gridTop) {
@@ -359,6 +365,7 @@ export default function DayCalendar({
         isNoteEvent: Boolean(event.isNoteEvent),
         mergeTargetId: null,
         clickTarget,
+        locked: Boolean(event.isRecurringInstance),
       };
     },
     [rangeStartMinutes, rangeEndMinutes, placementActive]
@@ -390,6 +397,7 @@ export default function DayCalendar({
         isNoteEvent: Boolean(event.isNoteEvent),
         mergeTargetId: null,
         clickTarget: null,
+        locked: Boolean(event.isRecurringInstance),
       };
     },
     [rangeStartMinutes, rangeEndMinutes, placementActive]
@@ -495,7 +503,10 @@ export default function DayCalendar({
                       className="h-3 w-3 shrink-0 cursor-pointer"
                     />
                   )}
-                  <span className={done ? "line-through opacity-70" : ""}>{event.title}</span>
+                  <span className={done ? "line-through opacity-70" : ""}>
+                    {event.isRecurringInstance && "↻ "}
+                    {event.title}
+                  </span>
                 </div>
               );
             })
@@ -630,6 +641,7 @@ export default function DayCalendar({
                       done ? "line-through opacity-70" : ""
                     }`}
                   >
+                    {event.isRecurringInstance && "↻ "}
                     {event.title}
                   </p>
                 </div>

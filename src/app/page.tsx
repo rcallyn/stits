@@ -3,17 +3,30 @@
 import { DragEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
-import { ScheduleEvent, formatEventDate, shiftISODate, todayISODate, truncateForTitle } from "@/lib/schedule";
-import { Todo } from "@/lib/todos";
+import {
+  baseEventId,
+  expandRecurringEvents,
+  formatEventDate,
+  isEventOnDate,
+  ScheduleEvent,
+  shiftISODate,
+  todayISODate,
+  truncateForTitle,
+} from "@/lib/schedule";
+import { isOverdue, PRIORITY_META, subtaskProgress, Todo } from "@/lib/todos";
 import DayCalendar from "@/components/DayCalendar";
 import { useTodos } from "@/hooks/useTodos";
 import { useNotes } from "@/hooks/useNotes";
 import { usePendingNoteId } from "@/hooks/usePendingNote";
+import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
 import TodoEditModal from "@/components/TodoEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
+import IOSDatePicker from "@/components/IOSDatePicker";
+import StatsWidget from "@/components/StatsWidget";
+import WeekView from "@/components/WeekView";
 import { formatNoteTimestamp } from "@/lib/notes";
 import { NOTE_DRAG_TYPE, TODO_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
@@ -23,6 +36,7 @@ export default function Home() {
   const { todos, loaded: todosLoaded, toggleTodo, updateTodo, removeTodo } = useTodos();
   const { notes, loaded: notesLoaded, updateNote } = useNotes();
   const { pendingNoteId, setPendingNoteId } = usePendingNoteId();
+  const { jumpToDate, setJumpToDate } = useJumpToDate();
   const { overrides: categoryColors } = useCategoryColors();
 
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
@@ -30,11 +44,24 @@ export default function Home() {
   const [dragOverToday, setDragOverToday] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayISODate());
+  const [lastAppliedJump, setLastAppliedJump] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+
+  if (jumpToDate && jumpToDate !== lastAppliedJump) {
+    setLastAppliedJump(jumpToDate);
+    setSelectedDate(jumpToDate);
+  }
 
   const isToday = selectedDate === todayISODate();
-  const visibleEvents = events.filter((event) => event.date === selectedDate);
+  const visibleEvents = expandRecurringEvents(events, selectedDate, selectedDate).filter((event) =>
+    isEventOnDate(event, selectedDate)
+  );
   const openTodos = todos.filter((todo) => !todo.done);
   const pendingNote = notes.find((n) => n.id === pendingNoteId) ?? null;
+
+  useEffect(() => {
+    if (jumpToDate) setJumpToDate(null);
+  }, [jumpToDate, setJumpToDate]);
 
   useEffect(() => {
     if (!pendingNote) return;
@@ -54,8 +81,8 @@ export default function Home() {
 
   function handleTodayDragOver(e: DragEvent) {
     if (
-      !e.dataTransfer.types.includes(TODO_DRAG_TYPE) &&
-      !e.dataTransfer.types.includes(NOTE_DRAG_TYPE)
+      viewMode !== "day" ||
+      (!e.dataTransfer.types.includes(TODO_DRAG_TYPE) && !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
     )
       return;
     e.preventDefault();
@@ -64,6 +91,7 @@ export default function Home() {
   }
 
   function handleTodayDrop(e: DragEvent) {
+    if (viewMode !== "day") return;
     setDragOverToday(false);
     const todoId = e.dataTransfer.getData(TODO_DRAG_TYPE);
     if (todoId) {
@@ -219,9 +247,10 @@ export default function Home() {
   }
 
   function handleRemoveNoteLine(eventId: string, lineId: string) {
-    const event = events.find((e) => e.id === eventId);
+    const realId = baseEventId(eventId);
+    const event = events.find((e) => e.id === realId);
     if (!event) return;
-    updateEvent(eventId, { notes: (event.notes ?? []).filter((note) => note.id !== lineId) });
+    updateEvent(realId, { notes: (event.notes ?? []).filter((note) => note.id !== lineId) });
   }
 
   function handleMergeNoteEvent(source: ScheduleEvent, target: ScheduleEvent) {
@@ -260,6 +289,8 @@ export default function Home() {
         <p className="mt-1 text-zinc-500 dark:text-zinc-400">A quick overview of your day.</p>
       </div>
 
+      <StatsWidget todos={todos} events={events} />
+
       <QuickAdd />
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -276,12 +307,7 @@ export default function Home() {
               >
                 ←
               </button>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-                className="rounded-md border border-black/[.12] bg-transparent px-2 py-1 text-sm outline-none dark:border-white/[.145]"
-              />
+              <IOSDatePicker value={selectedDate} onChange={setSelectedDate} />
               <button
                 type="button"
                 onClick={() => setSelectedDate(shiftISODate(selectedDate, 1))}
@@ -300,6 +326,22 @@ export default function Home() {
                 </button>
               )}
             </div>
+            <div className="flex items-center rounded-md border border-black/[.12] p-0.5 text-xs dark:border-white/[.145]">
+              {(["day", "week"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  className={`rounded px-2 py-1 font-medium capitalize transition-colors ${
+                    viewMode === mode
+                      ? "bg-foreground text-background"
+                      : "text-zinc-500 hover:text-foreground dark:text-zinc-400"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
             <Link
               href="/schedule"
               className="text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
@@ -317,7 +359,17 @@ export default function Home() {
             dragOverToday ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
           }`}
         >
-          {!eventsLoaded ? null : visibleEvents.length === 0 ? (
+          {!eventsLoaded ? null : viewMode === "week" && !pendingNote ? (
+            <WeekView
+              selectedDate={selectedDate}
+              events={events}
+              categoryColors={categoryColors}
+              onSelectDay={(dateStr) => {
+                setSelectedDate(dateStr);
+                setViewMode("day");
+              }}
+            />
+          ) : visibleEvents.length === 0 ? (
             <p
               onClick={() => pendingNote && handlePlaceAllDay()}
               className={`flex h-32 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400 ${
@@ -392,12 +444,25 @@ export default function Home() {
                       resolveColor(todo.id, todo.category, categoryColors).dot
                     }`}
                   />
+                  {todo.priority && (
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_META[todo.priority].dot}`}
+                      aria-label={`${PRIORITY_META[todo.priority].label} priority`}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => setEditingTodo(todo)}
-                    className="flex-1 truncate text-left text-sm font-medium"
+                    className={`flex-1 truncate text-left text-sm font-medium ${
+                      isOverdue(todo) ? "text-red-500" : ""
+                    }`}
                   >
                     {todo.title}
+                    {subtaskProgress(todo).total > 0 && (
+                      <span className="ml-1 text-xs font-normal text-zinc-400">
+                        {subtaskProgress(todo).done}/{subtaskProgress(todo).total}
+                      </span>
+                    )}
                   </button>
                   {todo.category && <CategoryBadge category={todo.category} />}
                 </li>
@@ -434,7 +499,14 @@ export default function Home() {
                   className="cursor-grab rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <CategoryBadge category={note.tag} />
+                    <div className="flex items-center gap-1.5">
+                      {note.pinned && (
+                        <span className="text-amber-500" aria-label="Pinned">
+                          ★
+                        </span>
+                      )}
+                      <CategoryBadge category={note.tag} />
+                    </div>
                     <span className="text-[11px] text-zinc-400">
                       {formatNoteTimestamp(note.createdAt)}
                     </span>

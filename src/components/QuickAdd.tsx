@@ -62,6 +62,7 @@ export default function QuickAdd() {
     <div className="flex flex-col gap-2">
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
+          id="quick-add-input"
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}

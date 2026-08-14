@@ -9,10 +9,14 @@ export type AttachedNote = {
   sourceNoteId?: string;
 };
 
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+export type RecurrenceRule = { freq: RecurrenceFrequency; interval: number };
+
 export type ScheduleEvent = {
   id: string;
   title: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD — start date; also the recurrence anchor
+  endDate?: string; // YYYY-MM-DD — for multi-day spans; ignored if `recurrence` is set
   time: string; // HH:MM, may be empty for all-day
   endTime?: string; // HH:MM, defaults to +1hr from time when absent
   todoId?: string; // links back to the todo this was scheduled from
@@ -23,6 +27,9 @@ export type ScheduleEvent = {
   isNoteEvent?: boolean; // true if this entry exists primarily to hold a
   // note placed onto an empty slot (vs. a todo or a plain typed event that
   // happens to have notes attached) — drives its visual "kind" on the calendar
+  recurrence?: RecurrenceRule;
+  isRecurringInstance?: boolean; // never persisted — set only on the virtual
+  // per-occurrence copies produced by expandRecurringEvents()
 };
 
 export type ScheduleEventKind = "todo" | "note" | "event";
@@ -101,4 +108,71 @@ export function shiftISODate(date: string, days: number): string {
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}-${String(
     shifted.getDate()
   ).padStart(2, "0")}`;
+}
+
+// True if `dateStr` falls anywhere within a (possibly multi-day) event's span.
+export function isEventOnDate(event: Pick<ScheduleEvent, "date" | "endDate">, dateStr: string): boolean {
+  const end = event.endDate && event.endDate > event.date ? event.endDate : event.date;
+  return dateStr >= event.date && dateStr <= end;
+}
+
+// Virtual occurrence ids look like `${realId}::${occurrenceDate}`. Every
+// mutation (update/remove/restore) should resolve back to the real stored
+// event — editing or deleting an occurrence acts on the whole series.
+export function baseEventId(id: string): string {
+  const separator = id.indexOf("::");
+  return separator === -1 ? id : id.slice(0, separator);
+}
+
+function advanceDate(date: string, freq: RecurrenceFrequency, step: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  if (freq === "daily") return shiftISODate(date, step);
+  if (freq === "weekly") return shiftISODate(date, step * 7);
+  const next = new Date(y, m - 1 + step, d);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(
+    next.getDate()
+  ).padStart(2, "0")}`;
+}
+
+// Expands recurring events into per-occurrence virtual copies within
+// [rangeStart, rangeEnd] (inclusive). Non-recurring events pass through
+// unchanged. Recurring events don't also support multi-day spans (`endDate`
+// is ignored once `recurrence` is set) — keeps occurrence math unambiguous.
+export function expandRecurringEvents(
+  events: ScheduleEvent[],
+  rangeStart: string,
+  rangeEnd: string
+): ScheduleEvent[] {
+  const result: ScheduleEvent[] = [];
+  for (const event of events) {
+    if (!event.recurrence) {
+      result.push(event);
+      continue;
+    }
+    const { freq, interval } = event.recurrence;
+    const step = Math.max(1, interval || 1);
+    let cursor = event.date;
+
+    // Jump close to rangeStart in one step instead of walking day-by-day from
+    // the anchor — otherwise a daily series anchored a year ago wouldn't
+    // reach a range that far out before the iteration guard below kicks in.
+    if (freq !== "monthly" && rangeStart > cursor) {
+      const daysPerOccurrence = freq === "daily" ? step : step * 7;
+      const daysBetween = Math.floor(
+        (Date.parse(rangeStart) - Date.parse(cursor)) / (24 * 60 * 60 * 1000)
+      );
+      const occurrencesToSkip = Math.max(0, Math.floor(daysBetween / daysPerOccurrence));
+      if (occurrencesToSkip > 0) cursor = advanceDate(cursor, freq, step * occurrencesToSkip);
+    }
+
+    let guard = 0;
+    while (cursor <= rangeEnd && guard < 500) {
+      if (cursor >= rangeStart) {
+        result.push({ ...event, id: `${event.id}::${cursor}`, date: cursor, isRecurringInstance: true });
+      }
+      cursor = advanceDate(cursor, freq, step);
+      guard++;
+    }
+  }
+  return result;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, FormEvent, useState } from "react";
+import { DragEvent, FormEvent, useRef, useState } from "react";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
@@ -8,6 +8,7 @@ import { formatEventDate, formatEventTime, todayISODate, ScheduleEvent } from "@
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
+import TodoMeta from "@/components/TodoMeta";
 import { TODO_DRAG_TYPE, EVENT_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
 
@@ -15,7 +16,7 @@ const fieldClass =
   "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
 
 export default function SchedulePage() {
-  const { events, loaded, addEvent, removeEvent, updateEvent } = useScheduleEvents();
+  const { events, loaded, addEvent, removeEvent, restoreEvent, updateEvent } = useScheduleEvents();
   const { todos, toggleTodo, removeTodo } = useTodos();
   const { overrides: categoryColors } = useCategoryColors();
   const [title, setTitle] = useState("");
@@ -26,8 +27,26 @@ export default function SchedulePage() {
   const [dragOverList, setDragOverList] = useState(false);
   const [dragOverTrash, setDragOverTrash] = useState(false);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
+  const [removedEvent, setRemovedEvent] = useState<ScheduleEvent | null>(null);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openTodos = todos.filter((todo) => !todo.done);
+
+  function handleRemove(id: string) {
+    const event = events.find((e) => e.id === id);
+    if (!event) return;
+    removeEvent(id);
+    setRemovedEvent(event);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    undoTimeoutRef.current = setTimeout(() => setRemovedEvent(null), 6000);
+  }
+
+  function handleUndoRemove() {
+    if (!removedEvent) return;
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    restoreEvent(removedEvent);
+    setRemovedEvent(null);
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -79,7 +98,7 @@ export default function SchedulePage() {
     setDragOverTrash(false);
     if (!eventId) return;
     e.preventDefault();
-    removeEvent(eventId);
+    handleRemove(eventId);
   }
 
   return (
@@ -187,19 +206,29 @@ export default function SchedulePage() {
                           resolveColor(event.todoId ?? event.id, event.category, categoryColors).dot
                         }`}
                       />
-                      <p className="truncate font-medium">{event.title}</p>
+                      <p className="truncate font-medium">
+                        {event.recurrence && <span title="Repeats">↻ </span>}
+                        {event.title}
+                      </p>
                       {event.category && <CategoryBadge category={event.category} />}
                     </div>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
                       {formatEventDate(event.date)}
+                      {event.endDate && event.endDate > event.date
+                        ? ` – ${formatEventDate(event.endDate)}`
+                        : ""}
                       {event.time ? ` · ${formatEventTime(event.time)}` : ""}
                       {event.time && event.endTime ? ` – ${formatEventTime(event.endTime)}` : ""}
+                      {event.recurrence &&
+                        ` · Repeats ${event.recurrence.freq}${
+                          event.recurrence.interval > 1 ? ` (every ${event.recurrence.interval})` : ""
+                        }`}
                     </p>
                   </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeEvent(event.id);
+                      handleRemove(event.id);
                     }}
                     className="shrink-0 text-sm text-zinc-400 transition-colors hover:text-red-500"
                     aria-label={`Remove ${event.title}`}
@@ -266,12 +295,8 @@ export default function SchedulePage() {
                         {todo.title}
                       </p>
                     </div>
+                    <TodoMeta todo={todo} />
                     <div className="mt-1 flex items-center gap-2">
-                      {todo.dueDate && (
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                          Due {formatEventDate(todo.dueDate)}
-                        </span>
-                      )}
                       {todo.category && <CategoryBadge category={todo.category} />}
                     </div>
                   </div>
@@ -293,9 +318,24 @@ export default function SchedulePage() {
         <EventEditModal
           event={editingEvent}
           onSave={(id, changes) => updateEvent(id, changes)}
-          onDelete={removeEvent}
+          onDelete={handleRemove}
           onClose={() => setEditingEvent(null)}
         />
+      )}
+
+      {removedEvent && (
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-4 rounded-full bg-foreground px-5 py-3 text-sm text-background shadow-lg">
+            <span className="max-w-[16rem] truncate">Removed &ldquo;{removedEvent.title}&rdquo;</span>
+            <button
+              type="button"
+              onClick={handleUndoRemove}
+              className="shrink-0 font-semibold text-[#0A84FF] transition-opacity hover:opacity-80"
+            >
+              Undo
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );

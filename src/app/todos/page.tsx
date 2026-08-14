@@ -2,9 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useTodos } from "@/hooks/useTodos";
-import { formatEventDate } from "@/lib/schedule";
 import { Todo } from "@/lib/todos";
 import TodoEditModal from "@/components/TodoEditModal";
+import TodoMeta from "@/components/TodoMeta";
 import { resolveColor } from "@/lib/itemColor";
 
 export default function TodosPage() {
@@ -101,11 +101,7 @@ export default function TodosPage() {
                       {todo.title}
                     </p>
                   </div>
-                  {todo.dueDate && (
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                      Due {formatEventDate(todo.dueDate)}
-                    </p>
-                  )}
+                  <TodoMeta todo={todo} />
                 </button>
               </label>
               <button

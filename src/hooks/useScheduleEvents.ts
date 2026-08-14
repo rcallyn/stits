@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { SCHEDULE_STORAGE_KEY, ScheduleEvent, sortEvents } from "@/lib/schedule";
+import { baseEventId, SCHEDULE_STORAGE_KEY, ScheduleEvent, sortEvents } from "@/lib/schedule";
 
 let store: ScheduleEvent[] = [];
 let hydrated = false;
@@ -71,21 +71,36 @@ export function useScheduleEvents() {
     setStore(sortEvents([...store, { ...event, id: crypto.randomUUID() }]));
   }, []);
 
+  // `id` may be a virtual recurring-occurrence id (`realId::date`) — always
+  // resolves back to the real stored event, so acting on any occurrence
+  // acts on the whole series.
   const removeEvent = useCallback((id: string) => {
-    setStore(store.filter((event) => event.id !== id));
+    const realId = baseEventId(id);
+    setStore(store.filter((event) => event.id !== realId));
+  }, []);
+
+  // Re-inserts a previously-removed event with its original id intact, for undo.
+  const restoreEvent = useCallback((event: ScheduleEvent) => {
+    setStore(sortEvents([...store.filter((e) => e.id !== event.id), event]));
   }, []);
 
   const updateEvent = useCallback(
     (
       id: string,
-      changes: Partial<Pick<ScheduleEvent, "title" | "date" | "time" | "endTime" | "done" | "notes">>
+      changes: Partial<
+        Pick<
+          ScheduleEvent,
+          "title" | "date" | "endDate" | "time" | "endTime" | "done" | "notes" | "recurrence"
+        >
+      >
     ) => {
+      const realId = baseEventId(id);
       setStore(
-        sortEvents(store.map((event) => (event.id === id ? { ...event, ...changes } : event)))
+        sortEvents(store.map((event) => (event.id === realId ? { ...event, ...changes } : event)))
       );
     },
     []
   );
 
-  return { events, loaded, addEvent, removeEvent, updateEvent };
+  return { events, loaded, addEvent, removeEvent, restoreEvent, updateEvent };
 }

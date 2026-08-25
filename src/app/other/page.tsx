@@ -17,9 +17,10 @@ import ColorSwatchPicker from "@/components/ColorSwatchPicker";
 import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
 import { applyBackup, downloadBackup, isBackupData } from "@/lib/backup";
+import CanvasSyncPanel from "@/components/CanvasSyncPanel";
 
 const fieldClass =
-  "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
+  "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
 
 type Kind = "todo" | "note";
 
@@ -96,9 +97,9 @@ export default function OtherPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 rounded-lg border border-black/[.08] p-5 dark:border-white/[.145]"
+        className="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none"
       >
-        <div className="flex gap-2">
+        <div className="flex gap-1 rounded-lg bg-black/[.05] p-1 dark:bg-white/[.08]">
           {(["todo", "note"] as Kind[]).map((k) => (
             <button
               key={k}
@@ -106,8 +107,8 @@ export default function OtherPage() {
               onClick={() => setKind(k)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 kind === k
-                  ? "bg-foreground text-background"
-                  : "border border-black/[.12] text-zinc-500 hover:text-foreground dark:border-white/[.145] dark:text-zinc-400"
+                  ? "bg-white text-foreground shadow-sm dark:bg-[#3a3a3c]"
+                  : "text-zinc-500 hover:text-foreground dark:text-zinc-400"
               }`}
             >
               {k === "todo" ? "Todo" : "Note"}
@@ -168,7 +169,7 @@ export default function OtherPage() {
 
           <button
             type="submit"
-            className="h-10 shrink-0 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            className="h-10 shrink-0 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb]"
           >
             Add
           </button>
@@ -196,7 +197,7 @@ export default function OtherPage() {
             e.preventDefault();
             moveCategory(draggedKey, key);
           }}
-          className={`cursor-grab rounded-xl border border-black/[.08] p-5 transition-opacity active:cursor-grabbing dark:border-white/[.145] ${
+          className={`cursor-grab rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] transition-opacity active:cursor-grabbing dark:bg-[#1c1c1e] dark:shadow-none ${
             draggingCategory === key ? "opacity-40" : ""
           }`}
         >
@@ -295,7 +296,7 @@ export default function OtherPage() {
                   .map((note) => (
                     <li
                       key={note.id}
-                      className="flex flex-col gap-2 rounded-md border border-black/[.08] px-3 py-2 dark:border-white/[.145]"
+                      className="flex flex-col gap-2 rounded-md bg-black/[.03] px-3 py-2 dark:bg-white/[.05]"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm">{note.text}</p>
@@ -347,7 +348,9 @@ export default function OtherPage() {
         </section>
       ))}
 
-      <section className="rounded-xl border border-black/[.08] p-5 dark:border-white/[.145]">
+      <CanvasSyncPanel />
+
+      <section className="rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <h2 className="text-sm font-semibold">Data</h2>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Everything here lives only in this browser. Export a backup periodically so you don&apos;t
@@ -357,14 +360,14 @@ export default function OtherPage() {
           <button
             type="button"
             onClick={downloadBackup}
-            className="rounded-md border border-black/[.12] px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+            className="rounded-full border border-[#0071e3] px-4 py-1.5 text-sm font-medium text-[#0071e3] transition-colors hover:bg-[#0071e3]/[.06] dark:border-[#2997ff] dark:text-[#2997ff] dark:hover:bg-[#2997ff]/[.1]"
           >
             Export backup
           </button>
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
-            className="rounded-md border border-black/[.12] px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+            className="rounded-full border border-[#0071e3] px-4 py-1.5 text-sm font-medium text-[#0071e3] transition-colors hover:bg-[#0071e3]/[.06] dark:border-[#2997ff] dark:text-[#2997ff] dark:hover:bg-[#2997ff]/[.1]"
           >
             Import backup
           </button>

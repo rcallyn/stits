@@ -32,7 +32,7 @@ export default function TodosPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 rounded-lg border border-black/[.08] p-5 dark:border-white/[.145] sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none sm:flex-row sm:items-end"
       >
         <label className="flex flex-1 flex-col gap-1 text-sm">
           Title
@@ -42,7 +42,7 @@ export default function TodosPage() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Renew passport"
             required
-            className="rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]"
+            className="rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -51,12 +51,12 @@ export default function TodosPage() {
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            className="rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]"
+            className="rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20"
           />
         </label>
         <button
           type="submit"
-          className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          className="h-10 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb]"
         >
           Add todo
         </button>
@@ -73,7 +73,7 @@ export default function TodosPage() {
           {todos.map((todo) => (
             <li
               key={todo.id}
-              className="flex items-center justify-between rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.145]"
+              className="flex items-center justify-between rounded-lg bg-black/[.02] px-4 py-3 dark:bg-white/[.04]"
             >
               <label className="flex flex-1 items-center gap-3">
                 <input

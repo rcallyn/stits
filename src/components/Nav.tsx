@@ -22,12 +22,12 @@ export default function Nav() {
   const { setOpen: setSearchOpen } = useSearchPalette();
 
   return (
-    <header className="border-b border-black/[.08] dark:border-white/[.145]">
-      <nav className="mx-auto flex max-w-3xl items-center gap-6 px-6 py-4">
-        <Link href="/" className="font-semibold tracking-tight">
+    <header className="sticky top-0 z-40 bg-black/80 text-white [backdrop-filter:saturate(180%)_blur(20px)]">
+      <nav className="mx-auto flex h-12 max-w-4xl items-center gap-6 px-6">
+        <Link href="/" className="text-[13px] font-semibold tracking-tight text-white">
           stits
         </Link>
-        <div className="flex flex-1 gap-4 text-sm">
+        <div className="flex flex-1 gap-5 text-[12px]">
           {links.map(({ href, label }) => {
             const active = pathname === href;
             return (
@@ -35,9 +35,7 @@ export default function Nav() {
                 key={href}
                 href={href}
                 className={
-                  active
-                    ? "font-medium text-foreground"
-                    : "text-zinc-500 hover:text-foreground dark:text-zinc-400"
+                  active ? "text-white" : "text-white/70 transition-colors hover:text-white"
                 }
               >
                 {label}
@@ -50,7 +48,7 @@ export default function Nav() {
           onClick={() => setSearchOpen(true)}
           aria-label="Search"
           title="Search (Ctrl/Cmd+K)"
-          className="rounded-md px-2 py-1 text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
+          className="rounded-md px-2 py-1 text-sm text-white/70 transition-colors hover:text-white"
         >
           🔍
         </button>
@@ -59,7 +57,7 @@ export default function Nav() {
           onClick={() => setTheme(THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length])}
           aria-label={`Theme: ${theme}. Click to change.`}
           title={`Theme: ${theme}`}
-          className="rounded-md px-1.5 py-1 text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
+          className="rounded-md px-1.5 py-1 text-sm text-white/70 transition-colors hover:text-white"
         >
           {THEME_ICON[theme]}
         </button>

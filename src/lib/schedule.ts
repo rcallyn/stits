@@ -10,7 +10,12 @@ export type AttachedNote = {
 };
 
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
-export type RecurrenceRule = { freq: RecurrenceFrequency; interval: number };
+export type RecurrenceRule = {
+  freq: RecurrenceFrequency;
+  interval: number;
+  until?: string; // YYYY-MM-DD, inclusive — recurrence produces no occurrences after this date
+  exceptions?: string[]; // YYYY-MM-DD dates to skip (e.g. holidays/breaks) without ending the series
+};
 
 export type ScheduleEvent = {
   id: string;
@@ -30,6 +35,8 @@ export type ScheduleEvent = {
   recurrence?: RecurrenceRule;
   isRecurringInstance?: boolean; // never persisted — set only on the virtual
   // per-occurrence copies produced by expandRecurringEvents()
+  canvasId?: string; // set when this event mirrors a Canvas planner item —
+  // drives upsert/removal matching on re-sync
 };
 
 export type ScheduleEventKind = "todo" | "note" | "event";
@@ -95,6 +102,56 @@ export function eventDurationMinutes(event: ScheduleEvent): number {
   return Math.max(duration, MIN_DURATION_MINUTES);
 }
 
+export type PositionedEvent = { event: ScheduleEvent; column: number; columns: number };
+
+// Assigns each (already time-sorted-agnostic) timed event a column within its
+// overlap cluster, so simultaneous events render side by side instead of
+// stacked. Shared by DayCalendar (one day) and WeekCalendar (one call per
+// day column) so both grids lay out overlaps identically.
+export function layoutDayEvents(events: ScheduleEvent[]): PositionedEvent[] {
+  const sorted = [...events].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const result: PositionedEvent[] = [];
+
+  let cluster: ScheduleEvent[] = [];
+  let clusterEnd = -Infinity;
+
+  function flushCluster() {
+    if (cluster.length === 0) return;
+    const columnEndMinutes: number[] = [];
+    const columnByEventId = new Map<string, number>();
+
+    for (const event of cluster) {
+      const start = timeToMinutes(event.time);
+      let column = columnEndMinutes.findIndex((end) => end <= start);
+      if (column === -1) {
+        column = columnEndMinutes.length;
+        columnEndMinutes.push(0);
+      }
+      columnEndMinutes[column] = start + eventDurationMinutes(event);
+      columnByEventId.set(event.id, column);
+    }
+
+    const columns = columnEndMinutes.length;
+    for (const event of cluster) {
+      result.push({ event, column: columnByEventId.get(event.id)!, columns });
+    }
+    cluster = [];
+  }
+
+  for (const event of sorted) {
+    const start = timeToMinutes(event.time);
+    if (cluster.length > 0 && start >= clusterEnd) {
+      flushCluster();
+      clusterEnd = -Infinity;
+    }
+    cluster.push(event);
+    clusterEnd = Math.max(clusterEnd, start + eventDurationMinutes(event));
+  }
+  flushCluster();
+
+  return result;
+}
+
 export function todayISODate(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -149,8 +206,10 @@ export function expandRecurringEvents(
       result.push(event);
       continue;
     }
-    const { freq, interval } = event.recurrence;
+    const { freq, interval, until, exceptions } = event.recurrence;
     const step = Math.max(1, interval || 1);
+    const effectiveEnd = until && until < rangeEnd ? until : rangeEnd;
+    const exceptionSet = exceptions && exceptions.length ? new Set(exceptions) : null;
     let cursor = event.date;
 
     // Jump close to rangeStart in one step instead of walking day-by-day from
@@ -166,8 +225,8 @@ export function expandRecurringEvents(
     }
 
     let guard = 0;
-    while (cursor <= rangeEnd && guard < 500) {
-      if (cursor >= rangeStart) {
+    while (cursor <= effectiveEnd && guard < 500) {
+      if (cursor >= rangeStart && !(exceptionSet && exceptionSet.has(cursor))) {
         result.push({ ...event, id: `${event.id}::${cursor}`, date: cursor, isRecurringInstance: true });
       }
       cursor = advanceDate(cursor, freq, step);

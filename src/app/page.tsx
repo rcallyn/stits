@@ -26,10 +26,25 @@ import TodoEditModal from "@/components/TodoEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import IOSDatePicker from "@/components/IOSDatePicker";
 import StatsWidget from "@/components/StatsWidget";
-import WeekView from "@/components/WeekView";
+import WeekCalendar from "@/components/WeekCalendar";
 import { formatNoteTimestamp } from "@/lib/notes";
 import { NOTE_DRAG_TYPE, TODO_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
+import { weekDates } from "@/lib/monthGrid";
+
+function formatWeekRangeLabel(start: string, end: string) {
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const startLabel = new Date(sy, sm - 1, sd).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  const endLabel = new Date(ey, em - 1, ed).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
 
 export default function Home() {
   const { events, loaded: eventsLoaded, addEvent, updateEvent, removeEvent } = useScheduleEvents();
@@ -45,7 +60,7 @@ export default function Home() {
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayISODate());
   const [lastAppliedJump, setLastAppliedJump] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+  const [viewMode, setViewMode] = useState<"day" | "week">("week");
 
   if (jumpToDate && jumpToDate !== lastAppliedJump) {
     setLastAppliedJump(jumpToDate);
@@ -56,7 +71,20 @@ export default function Home() {
   const visibleEvents = expandRecurringEvents(events, selectedDate, selectedDate).filter((event) =>
     isEventOnDate(event, selectedDate)
   );
-  const openTodos = todos.filter((todo) => !todo.done);
+  const weekDays = weekDates(selectedDate);
+  const weekStart = weekDays[0];
+  const weekEnd = weekDays[weekDays.length - 1];
+  const showTodayShortcut = viewMode === "week" ? !weekDays.includes(todayISODate()) : !isToday;
+  // School assignments are usually numerous and often auto-imported (Canvas
+  // sync) — only show ones due in the visible week so they don't drown out
+  // everything else. Other categories still show all open todos.
+  const openTodos = todos.filter((todo) => {
+    if (todo.done) return false;
+    if (todo.category === "school") {
+      return Boolean(todo.dueDate && todo.dueDate >= weekStart && todo.dueDate <= weekEnd);
+    }
+    return true;
+  });
   const pendingNote = notes.find((n) => n.id === pendingNoteId) ?? null;
 
   useEffect(() => {
@@ -259,7 +287,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-12">
+    <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-6 py-6">
       {pendingNote && (
         <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-center gap-3 border-b border-black/[.08] bg-background/95 px-4 py-2 text-center text-sm backdrop-blur dark:border-white/[.145]">
           <span>
@@ -277,32 +305,40 @@ export default function Home() {
       )}
       {pendingNote && cursorPos && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-md border border-black/[.12] bg-background px-3 py-2 text-xs shadow-lg dark:border-white/[.145]"
+          className="pointer-events-none fixed z-50 max-w-xs rounded-md bg-white px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.2)] dark:bg-[#1c1c1e]"
           style={{ left: cursorPos.x + 14, top: cursorPos.y + 14 }}
         >
           📝 {truncateForTitle(pendingNote.text, 60)}
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-zinc-500 dark:text-zinc-400">A quick overview of your day.</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <div className="w-full sm:w-96">
+          <QuickAdd />
+        </div>
       </div>
 
       <StatsWidget todos={todos} events={events} />
 
-      <QuickAdd />
-
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      <section className="flex-1 rounded-xl border border-black/[.08] p-6 dark:border-white/[.145]">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
+      <section className="flex min-h-0 flex-1 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:min-h-[75vh]">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">{isToday ? "Today" : formatEventDate(selectedDate)}</h2>
+          <h2 className="text-lg font-semibold">
+            {viewMode === "week"
+              ? formatWeekRangeLabel(weekDays[0], weekDays[weekDays.length - 1])
+              : isToday
+                ? "Today"
+                : formatEventDate(selectedDate)}
+          </h2>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setSelectedDate(shiftISODate(selectedDate, -1))}
-                aria-label="Previous day"
+                onClick={() =>
+                  setSelectedDate(shiftISODate(selectedDate, viewMode === "week" ? -7 : -1))
+                }
+                aria-label={viewMode === "week" ? "Previous week" : "Previous day"}
                 className="rounded-md px-1.5 py-0.5 text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
               >
                 ←
@@ -310,13 +346,15 @@ export default function Home() {
               <IOSDatePicker value={selectedDate} onChange={setSelectedDate} />
               <button
                 type="button"
-                onClick={() => setSelectedDate(shiftISODate(selectedDate, 1))}
-                aria-label="Next day"
+                onClick={() =>
+                  setSelectedDate(shiftISODate(selectedDate, viewMode === "week" ? 7 : 1))
+                }
+                aria-label={viewMode === "week" ? "Next week" : "Next day"}
                 className="rounded-md px-1.5 py-0.5 text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
               >
                 →
               </button>
-              {!isToday && (
+              {showTodayShortcut && (
                 <button
                   type="button"
                   onClick={() => setSelectedDate(todayISODate())}
@@ -326,15 +364,15 @@ export default function Home() {
                 </button>
               )}
             </div>
-            <div className="flex items-center rounded-md border border-black/[.12] p-0.5 text-xs dark:border-white/[.145]">
-              {(["day", "week"] as const).map((mode) => (
+            <div className="flex items-center gap-0.5 rounded-lg bg-black/[.05] p-0.5 text-xs dark:bg-white/[.08]">
+              {(["week", "day"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
-                  className={`rounded px-2 py-1 font-medium capitalize transition-colors ${
+                  className={`rounded-md px-2 py-1 font-medium capitalize transition-colors ${
                     viewMode === mode
-                      ? "bg-foreground text-background"
+                      ? "bg-white text-foreground shadow-sm dark:bg-[#3a3a3c]"
                       : "text-zinc-500 hover:text-foreground dark:text-zinc-400"
                   }`}
                 >
@@ -355,19 +393,21 @@ export default function Home() {
           onDragOver={handleTodayDragOver}
           onDragLeave={() => setDragOverToday(false)}
           onDrop={handleTodayDrop}
-          className={`mt-4 rounded-lg transition-colors ${
+          className={`mt-4 flex-1 overflow-y-auto rounded-lg transition-colors ${
             dragOverToday ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
           }`}
         >
           {!eventsLoaded ? null : viewMode === "week" && !pendingNote ? (
-            <WeekView
+            <WeekCalendar
               selectedDate={selectedDate}
               events={events}
               categoryColors={categoryColors}
+              isEventDone={isEventDone}
               onSelectDay={(dateStr) => {
                 setSelectedDate(dateStr);
                 setViewMode("day");
               }}
+              onEditEvent={setEditingEvent}
             />
           ) : visibleEvents.length === 0 ? (
             <p
@@ -406,8 +446,8 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="flex w-full flex-col gap-6 lg:w-80 lg:shrink-0">
-      <section className="rounded-xl border border-black/[.08] p-6 dark:border-white/[.145]">
+      <div className="flex w-full flex-col gap-6 overflow-y-auto lg:w-72 lg:shrink-0">
+      <section className="rounded-xl bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Todos</h2>
           <Link
@@ -472,7 +512,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-black/[.08] p-6 dark:border-white/[.145]">
+      <section className="rounded-xl bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Notes</h2>
           <Link

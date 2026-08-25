@@ -2,10 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import Modal from "@/components/Modal";
-import { RecurrenceFrequency, ScheduleEvent } from "@/lib/schedule";
+import { RecurrenceFrequency, RecurrenceRule, ScheduleEvent } from "@/lib/schedule";
 
 const fieldClass =
-  "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
+  "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
 
 type SaveChanges = {
   title: string;
@@ -13,7 +13,7 @@ type SaveChanges = {
   endDate?: string;
   time: string;
   endTime?: string;
-  recurrence?: { freq: RecurrenceFrequency; interval: number };
+  recurrence?: RecurrenceRule;
 };
 
 type Props = {
@@ -48,7 +48,14 @@ export default function EventEditModal({
       endDate: !freq && endDate && endDate > date ? endDate : undefined,
       time,
       endTime: time && endTime ? endTime : undefined,
-      recurrence: freq ? { freq, interval: Math.max(1, interval) } : undefined,
+      recurrence: freq
+        ? {
+            freq,
+            interval: Math.max(1, interval),
+            until: event.recurrence?.until,
+            exceptions: event.recurrence?.exceptions,
+          }
+        : undefined,
     });
     onClose();
   }
@@ -144,7 +151,7 @@ export default function EventEditModal({
         </div>
 
         {event.notes && event.notes.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-md border border-black/[.08] px-3 py-2 text-sm dark:border-white/[.145]">
+          <div className="flex flex-col gap-2 rounded-md bg-black/[.03] px-3 py-2 text-sm dark:bg-white/[.05]">
             <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">📝 Notes</p>
             {event.notes.map((note) => (
               <div key={note.id} className="flex items-start justify-between gap-2">
@@ -176,7 +183,7 @@ export default function EventEditModal({
           </button>
           <button
             type="submit"
-            className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            className="h-10 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb]"
           >
             Save
           </button>

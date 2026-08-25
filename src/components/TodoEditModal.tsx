@@ -7,7 +7,7 @@ import { CATEGORY_LIST, isCategory } from "@/lib/categories";
 import { useCategoryLabels } from "@/hooks/useCategoryLabels";
 
 const fieldClass =
-  "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
+  "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
 
 type Props = {
   todo: Todo;
@@ -114,7 +114,7 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
           Done
         </label>
 
-        <div className="flex flex-col gap-2 rounded-md border border-black/[.08] px-3 py-2 dark:border-white/[.145]">
+        <div className="flex flex-col gap-2 rounded-md bg-black/[.03] px-3 py-2 dark:bg-white/[.05]">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Subtasks</p>
           {subtasks.map((subtask) => (
             <div key={subtask.id} className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
             <button
               type="button"
               onClick={addSubtask}
-              className="shrink-0 rounded-md border border-black/[.12] px-3 text-sm dark:border-white/[.145]"
+              className="shrink-0 rounded-md border border-[#0071e3]/40 px-3 text-sm text-[#0071e3] transition-colors hover:bg-[#0071e3]/[.06] dark:border-[#2997ff]/40 dark:text-[#2997ff] dark:hover:bg-[#2997ff]/[.1]"
             >
               Add
             </button>
@@ -178,7 +178,7 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
           </button>
           <button
             type="submit"
-            className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            className="h-10 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb]"
           >
             Save
           </button>

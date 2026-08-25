@@ -7,6 +7,7 @@ import {
   ScheduleEventKind,
   eventDurationMinutes,
   formatEventTime,
+  layoutDayEvents,
   minutesToTime,
   scheduleEventKind,
   timeToMinutes,
@@ -51,12 +52,6 @@ type Props = {
   onMergeNoteEvent?: (source: ScheduleEvent, target: ScheduleEvent) => void;
   onDropNoteOnEvent?: (event: ScheduleEvent, noteId: string) => void;
   categoryColors?: Partial<Record<Category, string>>;
-};
-
-type PositionedEvent = {
-  event: ScheduleEvent;
-  column: number;
-  columns: number;
 };
 
 type DragMode = "move" | "resize-top" | "resize-bottom";
@@ -119,7 +114,7 @@ export default function DayCalendar({
   const rangeEndMinutes = endHour * 60;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const totalHeight = hours.length * HOUR_HEIGHT;
-  const positioned = layoutEvents(timed);
+  const positioned = layoutDayEvents(timed);
 
   const [draft, setDraft] = useState<Record<string, { time: string; endTime: string }>>({});
   const [dropPreviewMinutes, setDropPreviewMinutes] = useState<number | null>(null);
@@ -551,8 +546,8 @@ export default function DayCalendar({
               className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
               style={{ top: (dropPreviewMinutes - rangeStartMinutes) * PX_PER_MINUTE }}
             >
-              <div className="h-0.5 flex-1 bg-foreground" />
-              <span className="ml-1 shrink-0 rounded bg-foreground px-1 text-[10px] font-medium text-background">
+              <div className="h-0.5 flex-1 bg-[#0071e3]" />
+              <span className="ml-1 shrink-0 rounded bg-[#0071e3] px-1 text-[10px] font-medium text-white">
                 {formatEventTime(minutesToTime(dropPreviewMinutes))}
               </span>
             </div>
@@ -784,48 +779,4 @@ function formatHour(hour: number) {
   const period = hour < 12 ? "AM" : "PM";
   const displayHour = hour % 12 === 0 ? 12 : hour % 12;
   return `${displayHour} ${period}`;
-}
-
-function layoutEvents(events: ScheduleEvent[]): PositionedEvent[] {
-  const sorted = [...events].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
-  const result: PositionedEvent[] = [];
-
-  let cluster: ScheduleEvent[] = [];
-  let clusterEnd = -Infinity;
-
-  function flushCluster() {
-    if (cluster.length === 0) return;
-    const columnEndMinutes: number[] = [];
-    const columnByEventId = new Map<string, number>();
-
-    for (const event of cluster) {
-      const start = timeToMinutes(event.time);
-      let column = columnEndMinutes.findIndex((end) => end <= start);
-      if (column === -1) {
-        column = columnEndMinutes.length;
-        columnEndMinutes.push(0);
-      }
-      columnEndMinutes[column] = start + eventDurationMinutes(event);
-      columnByEventId.set(event.id, column);
-    }
-
-    const columns = columnEndMinutes.length;
-    for (const event of cluster) {
-      result.push({ event, column: columnByEventId.get(event.id)!, columns });
-    }
-    cluster = [];
-  }
-
-  for (const event of sorted) {
-    const start = timeToMinutes(event.time);
-    if (cluster.length > 0 && start >= clusterEnd) {
-      flushCluster();
-      clusterEnd = -Infinity;
-    }
-    cluster.push(event);
-    clusterEnd = Math.max(clusterEnd, start + eventDurationMinutes(event));
-  }
-  flushCluster();
-
-  return result;
 }

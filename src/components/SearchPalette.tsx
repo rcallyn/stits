@@ -107,7 +107,7 @@ export default function SearchPalette() {
         aria-modal="true"
         aria-label="Search"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-black/[.08] bg-background shadow-2xl dark:border-white/[.145]"
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.25)] dark:bg-[#1c1c1e]"
       >
         <input
           autoFocus

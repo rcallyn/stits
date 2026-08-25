@@ -67,12 +67,12 @@ export default function QuickAdd() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="e.g. Dentist appointment tomorrow at 3pm"
-          className="flex-1 rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]"
+          className="flex-1 rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20"
         />
         <button
           type="submit"
           disabled={status.state === "loading"}
-          className="h-10 shrink-0 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
+          className="h-10 shrink-0 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb] disabled:opacity-50"
         >
           {status.state === "loading" ? "Adding…" : "Add"}
         </button>

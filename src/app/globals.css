@@ -1,31 +1,70 @@
 @import "tailwindcss";
 
+/* Mirrors the --background/--foreground logic below: explicit
+   data-theme="dark" always wins; with no attribute ("system"), follow the
+   OS's prefers-color-scheme live; data-theme="light" always suppresses it.
+   Without this, Tailwind's dark: utilities fall back to their own default
+   (prefers-color-scheme only) and silently ignore the in-app toggle. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(html:not([data-theme="light"]), html:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-sf: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
+    Helvetica, Arial, sans-serif;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --surface: #ffffff;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-active: #006edb;
+  --link: #0066cc;
+  --card-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-sf);
+  --font-mono: var(--font-sf);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #000000;
+    --foreground: #f5f5f7;
+    --surface: #1c1c1e;
+    --accent: #0071e3;
+    --accent-hover: #147ce5;
+    --accent-active: #1a82e8;
+    --link: #2997ff;
+    --card-shadow: none;
   }
 }
 
 :root[data-theme="dark"] {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #000000;
+  --foreground: #f5f5f7;
+  --surface: #1c1c1e;
+  --accent: #0071e3;
+  --accent-hover: #147ce5;
+  --accent-active: #1a82e8;
+  --link: #2997ff;
+  --card-shadow: none;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sf);
+  letter-spacing: -0.011em;
 }

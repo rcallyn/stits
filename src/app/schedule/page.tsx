@@ -13,7 +13,7 @@ import { TODO_DRAG_TYPE, EVENT_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
 
 const fieldClass =
-  "rounded-md border border-black/[.12] bg-transparent px-3 py-2 text-sm outline-none focus:border-black/[.3] dark:border-white/[.145] dark:focus:border-white/[.4]";
+  "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
 
 export default function SchedulePage() {
   const { events, loaded, addEvent, removeEvent, restoreEvent, updateEvent } = useScheduleEvents();
@@ -115,7 +115,7 @@ export default function SchedulePage() {
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-3 rounded-lg border border-black/[.08] p-5 dark:border-white/[.145] sm:flex-row sm:items-end"
+          className="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none sm:flex-row sm:items-end"
         >
           <label className="flex flex-1 flex-col gap-1 text-sm">
             Title
@@ -159,7 +159,7 @@ export default function SchedulePage() {
           </label>
           <button
             type="submit"
-            className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            className="h-10 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb]"
           >
             Add event
           </button>
@@ -195,7 +195,7 @@ export default function SchedulePage() {
                     setDragOverTrash(false);
                   }}
                   onClick={() => setEditingEvent(event)}
-                  className={`flex cursor-pointer items-center justify-between rounded-lg border border-black/[.08] px-4 py-3 transition-colors hover:bg-black/[.02] dark:border-white/[.145] dark:hover:bg-white/[.03] ${
+                  className={`flex cursor-pointer items-center justify-between rounded-lg bg-black/[.02] px-4 py-3 transition-colors hover:bg-black/[.04] dark:bg-white/[.04] dark:hover:bg-white/[.07] ${
                     draggingEventId === event.id ? "opacity-40" : ""
                   }`}
                 >
@@ -247,10 +247,8 @@ export default function SchedulePage() {
           onDragOver={handleTrashDragOver}
           onDragLeave={() => setDragOverTrash(false)}
           onDrop={handleTrashDrop}
-          className={`rounded-xl border p-5 transition-colors ${
-            dragOverTrash
-              ? "border-red-500 bg-red-500/5"
-              : "border-black/[.08] dark:border-white/[.145]"
+          className={`rounded-xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] transition-colors dark:shadow-none ${
+            dragOverTrash ? "bg-red-500/10 ring-2 ring-red-500" : "bg-white dark:bg-[#1c1c1e]"
           }`}
         >
           <h2 className="text-sm font-semibold">Unscheduled todos</h2>
@@ -272,7 +270,7 @@ export default function SchedulePage() {
                     e.dataTransfer.setData(TODO_DRAG_TYPE, todo.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  className="flex cursor-grab items-start gap-2 rounded-md border border-black/[.12] px-3 py-2 text-sm active:cursor-grabbing dark:border-white/[.145]"
+                  className="flex cursor-grab items-start gap-2 rounded-md bg-black/[.03] px-3 py-2 text-sm active:cursor-grabbing dark:bg-white/[.05]"
                 >
                   <input
                     type="checkbox"
@@ -330,7 +328,7 @@ export default function SchedulePage() {
             <button
               type="button"
               onClick={handleUndoRemove}
-              className="shrink-0 font-semibold text-[#0A84FF] transition-opacity hover:opacity-80"
+              className="shrink-0 font-semibold text-[#0071e3] transition-opacity hover:opacity-80"
             >
               Undo
             </button>

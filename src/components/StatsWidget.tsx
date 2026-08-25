@@ -34,7 +34,7 @@ export default function StatsWidget({ todos, events }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {tiles.map((tile) => (
-        <div key={tile.label} className="rounded-xl border border-black/[.08] p-4 dark:border-white/[.145]">
+        <div key={tile.label} className="rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
           <p className={`text-2xl font-semibold ${tile.alert ? "text-red-500" : ""}`}>{tile.value}</p>
           <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{tile.label}</p>
         </div>

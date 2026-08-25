@@ -27,7 +27,7 @@ export default function Modal({ title, onClose, children }: Props) {
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl border border-black/[.08] bg-background p-5 dark:border-white/[.145]"
+        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_8px_40px_rgba(0,0,0,0.25)] dark:bg-[#1c1c1e]"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">{title}</h2>

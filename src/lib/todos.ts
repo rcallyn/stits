@@ -18,6 +18,8 @@ export type Todo = {
   priority?: TodoPriority;
   subtasks?: Subtask[];
   completedAt?: string; // ISO timestamp, set when `done` becomes true
+  canvasId?: string; // set when this todo mirrors a Canvas planner item —
+  // drives upsert/removal matching on re-sync
 };
 
 export const TODOS_STORAGE_KEY = "stits:todos";

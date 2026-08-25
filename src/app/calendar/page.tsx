@@ -9,9 +9,6 @@ import { expandRecurringEvents, isEventOnDate, todayISODate } from "@/lib/schedu
 import { buildMonthGrid, monthLabel, shiftMonth, WEEKDAY_LETTERS } from "@/lib/monthGrid";
 import { resolveColor } from "@/lib/itemColor";
 
-const IOS_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
-
 export default function CalendarPage() {
   const { events, loaded } = useScheduleEvents();
   const { overrides: categoryColors } = useCategoryColors();
@@ -49,16 +46,13 @@ export default function CalendarPage() {
         </p>
       </div>
 
-      <div
-        style={{ fontFamily: IOS_FONT }}
-        className="rounded-[28px] border border-black/[.06] bg-background p-6 shadow-sm dark:border-white/[.1]"
-      >
+      <div className="rounded-[28px] bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => goToMonth(-1)}
             aria-label="Previous month"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#007AFF] transition-colors hover:bg-[#007AFF]/10"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#0071e3] transition-colors hover:bg-[#0071e3]/10"
           >
             ‹
           </button>
@@ -67,7 +61,7 @@ export default function CalendarPage() {
             type="button"
             onClick={() => goToMonth(1)}
             aria-label="Next month"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#007AFF] transition-colors hover:bg-[#007AFF]/10"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#0071e3] transition-colors hover:bg-[#0071e3]/10"
           >
             ›
           </button>
@@ -96,7 +90,7 @@ export default function CalendarPage() {
                   >
                     <span
                       className={`flex h-9 w-9 items-center justify-center rounded-full text-[15px] ${
-                        isToday ? "bg-[#007AFF] font-semibold text-white" : "text-foreground"
+                        isToday ? "bg-[#0071e3] font-semibold text-white" : "text-foreground"
                       }`}
                     >
                       {cell.day}
@@ -124,7 +118,7 @@ export default function CalendarPage() {
               setViewYear(todayYear);
               setViewMonth(todayMonth);
             }}
-            className="mt-5 w-full rounded-2xl bg-[#007AFF]/10 py-2.5 text-sm font-semibold text-[#007AFF] transition-colors hover:bg-[#007AFF]/15"
+            className="mt-5 w-full rounded-2xl bg-[#0071e3]/10 py-2.5 text-sm font-semibold text-[#0071e3] transition-colors hover:bg-[#0071e3]/15"
           >
             Today
           </button>

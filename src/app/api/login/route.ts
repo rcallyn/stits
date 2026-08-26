@@ -1,14 +1,39 @@
+import { randomInt, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createPendingCookieValue, PENDING_COOKIE_NAME, SECURE_COOKIES } from "@/lib/session";
 import { sendPushoverNotification } from "@/lib/pushover";
+import { clientIp, isRateLimited, recordAttempt } from "@/lib/rateLimit";
+
+// Constant-time so a network attacker can't use response-time differences to
+// learn how many leading characters of a guess matched.
+function passwordMatches(candidate: string, expected: string): boolean {
+  const candidateBuf = Buffer.from(candidate);
+  const expectedBuf = Buffer.from(expected);
+  if (candidateBuf.length !== expectedBuf.length) {
+    timingSafeEqual(expectedBuf, expectedBuf); // keep timing consistent with the match path
+    return false;
+  }
+  return timingSafeEqual(candidateBuf, expectedBuf);
+}
 
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+  const { limited, retryAfterSeconds } = await isRateLimited("login", ip);
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+    );
+  }
+
   const { password } = await req.json();
-  if (typeof password !== "string" || password !== process.env.APP_PASSWORD) {
+  const ok = typeof password === "string" && passwordMatches(password, process.env.APP_PASSWORD ?? "");
+  await recordAttempt("login", ip, ok);
+  if (!ok) {
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(randomInt(100000, 1000000));
   const sent = await sendPushoverNotification(`Your login code: ${code}`, "stits login");
   if (!sent) {
     return NextResponse.json(

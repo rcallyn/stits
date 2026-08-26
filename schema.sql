@@ -51,3 +51,14 @@ create table if not exists settings (
 );
 
 insert into settings (id) values (1) on conflict (id) do nothing;
+
+-- Tracks failed login/2FA attempts per IP to throttle brute-forcing. `scope`
+-- separates the password step from the 2FA step since they have different
+-- limits.
+create table if not exists login_attempts (
+  scope text not null,
+  ip text not null,
+  attempts int not null default 1,
+  window_start timestamptz not null default now(),
+  primary key (scope, ip)
+);

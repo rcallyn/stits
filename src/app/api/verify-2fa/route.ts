@@ -7,15 +7,27 @@ import {
   SESSION_COOKIE_NAME,
   SECURE_COOKIES,
 } from "@/lib/session";
+import { clientIp, isRateLimited, recordAttempt } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
+  const ip = clientIp(req);
+  const { limited, retryAfterSeconds } = await isRateLimited("2fa", ip);
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+    );
+  }
+
   const { code } = await req.json();
   if (typeof code !== "string") {
     return NextResponse.json({ error: "Missing code." }, { status: 400 });
   }
 
   const pending = req.cookies.get(PENDING_COOKIE_NAME)?.value;
-  if (!(await verifyPendingCookieValue(pending, code))) {
+  const ok = await verifyPendingCookieValue(pending, code);
+  await recordAttempt("2fa", ip, ok);
+  if (!ok) {
     return NextResponse.json({ error: "Incorrect or expired code." }, { status: 401 });
   }
 

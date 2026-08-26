@@ -103,7 +103,15 @@ export function useScheduleEvents() {
       changes: Partial<
         Pick<
           ScheduleEvent,
-          "title" | "date" | "endDate" | "time" | "endTime" | "done" | "notes" | "recurrence"
+          | "title"
+          | "date"
+          | "endDate"
+          | "time"
+          | "endTime"
+          | "done"
+          | "category"
+          | "notes"
+          | "recurrence"
         >
       >
     ) => {

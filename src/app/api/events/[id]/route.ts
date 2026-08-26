@@ -14,6 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("time" in changes) fields.time = changes.time ?? "";
   if ("endTime" in changes) fields.end_time = changes.endTime ?? null;
   if ("done" in changes) fields.done = changes.done ?? null;
+  if ("category" in changes) fields.category = changes.category ?? null;
   if ("notes" in changes) fields.notes = changes.notes ? sql.json(changes.notes) : null;
   if ("recurrence" in changes) {
     fields.recurrence = changes.recurrence ? sql.json(changes.recurrence) : null;

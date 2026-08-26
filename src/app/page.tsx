@@ -567,7 +567,6 @@ export default function Home() {
           onSave={(id, changes) => updateEvent(id, changes)}
           onDelete={removeEvent}
           onClose={() => setEditingEvent(null)}
-          onRemoveNoteLine={handleRemoveNoteLine}
         />
       )}
       {editingTodo && (

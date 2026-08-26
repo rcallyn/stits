@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ThemePreference, useTheme } from "@/hooks/useTheme";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
 
@@ -18,8 +18,15 @@ const THEME_ICON: Record<ThemePreference, string> = { system: "🖥️", light: 
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { setOpen: setSearchOpen } = useSearchPalette();
+
+  async function handleLogout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-40 bg-black/80 text-white [backdrop-filter:saturate(180%)_blur(20px)]">
@@ -60,6 +67,15 @@ export default function Nav() {
           className="rounded-md px-1.5 py-1 text-sm text-white/70 transition-colors hover:text-white"
         >
           {THEME_ICON[theme]}
+        </button>
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="Log out"
+          title="Log out"
+          className="rounded-md px-2 py-1 text-[12px] text-white/70 transition-colors hover:text-white"
+        >
+          Log out
         </button>
       </nav>
     </header>

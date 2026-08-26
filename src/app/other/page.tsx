@@ -16,7 +16,7 @@ import TodoMeta from "@/components/TodoMeta";
 import ColorSwatchPicker from "@/components/ColorSwatchPicker";
 import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
-import { applyBackup, downloadBackup, isBackupData } from "@/lib/backup";
+import { applyBackup, downloadBackup, importLocalStorageBackup, isBackupData } from "@/lib/backup";
 import CanvasSyncPanel from "@/components/CanvasSyncPanel";
 
 const fieldClass =
@@ -353,10 +353,9 @@ export default function OtherPage() {
       <section className="rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <h2 className="text-sm font-semibold">Data</h2>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Everything here lives only in this browser. Export a backup periodically so you don&apos;t
-          lose it.
+          Your data lives in the database now. Export a backup periodically so you don&apos;t lose it.
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={downloadBackup}
@@ -378,6 +377,21 @@ export default function OtherPage() {
             onChange={handleImportFile}
             className="hidden"
           />
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Pull in any todos, events, and notes still sitting in this browser's local storage from before the database was set up?"
+                )
+              ) {
+                importLocalStorageBackup();
+              }
+            }}
+            className="rounded-full border border-black/[.12] px-4 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-black/[.03] dark:border-white/[.145] dark:text-zinc-400 dark:hover:bg-white/[.06]"
+          >
+            Import this browser&apos;s local data
+          </button>
         </div>
       </section>
 

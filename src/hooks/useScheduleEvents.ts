@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { baseEventId, SCHEDULE_STORAGE_KEY, ScheduleEvent, sortEvents } from "@/lib/schedule";
+import { baseEventId, ScheduleEvent, sortEvents } from "@/lib/schedule";
 
 let store: ScheduleEvent[] = [];
 let hydrated = false;
+let hydrating = false;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -13,22 +14,36 @@ function emit() {
 
 function setStore(next: ScheduleEvent[]) {
   store = next;
-  window.localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(store));
   emit();
 }
 
-function ensureHydrated() {
-  if (hydrated || typeof window === "undefined") return;
-  const raw = window.localStorage.getItem(SCHEDULE_STORAGE_KEY);
-  if (raw) {
-    try {
-      store = sortEvents(JSON.parse(raw));
-    } catch {
-      store = [];
-    }
+async function refresh() {
+  try {
+    const res = await fetch("/api/events");
+    const data = await res.json();
+    setStore(sortEvents(data.events ?? []));
+  } catch {
+    // Leave the cache as-is on a network failure — the next successful
+    // mutation's refresh will resync it.
   }
-  hydrated = true;
-  emit();
+}
+
+function ensureHydrated() {
+  if (hydrated || hydrating || typeof window === "undefined") return;
+  hydrating = true;
+  refresh().finally(() => {
+    hydrated = true;
+    hydrating = false;
+    emit();
+  });
+}
+
+// Callable outside the hook (e.g. from useTodos, after deleting a todo)
+// since a todo deletion cascade-deletes its linked schedule events in
+// Postgres via the todo_id FK — this refreshes this hook's client-side
+// cache to match.
+export function refreshScheduleEventsCache() {
+  refresh();
 }
 
 function subscribe(listener: () => void) {
@@ -44,15 +59,6 @@ function getHydratedSnapshot() {
   return hydrated;
 }
 
-// Callable outside the hook (e.g. from useTodos) so deleting a todo can
-// cascade-remove any schedule instances it was dragged onto. Guards with
-// ensureHydrated so a caller that mounts before any useScheduleEvents
-// consumer doesn't wipe localStorage with an empty in-memory store.
-export function removeEventsByTodoId(todoId: string) {
-  ensureHydrated();
-  setStore(store.filter((event) => event.todoId !== todoId));
-}
-
 const EMPTY_EVENTS: ScheduleEvent[] = [];
 
 export function useScheduleEvents() {
@@ -60,28 +66,35 @@ export function useScheduleEvents() {
     ensureHydrated();
   }, []);
 
-  const events = useSyncExternalStore(
-    subscribe,
-    getStoreSnapshot,
-    () => EMPTY_EVENTS
-  );
+  const events = useSyncExternalStore(subscribe, getStoreSnapshot, () => EMPTY_EVENTS);
   const loaded = useSyncExternalStore(subscribe, getHydratedSnapshot, () => false);
 
   const addEvent = useCallback((event: Omit<ScheduleEvent, "id">) => {
-    setStore(sortEvents([...store, { ...event, id: crypto.randomUUID() }]));
+    const tempId = `temp-${crypto.randomUUID()}`;
+    setStore(sortEvents([...store, { ...event, id: tempId }]));
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    }).finally(refresh);
   }, []);
 
-  // `id` may be a virtual recurring-occurrence id (`realId::date`) — always
-  // resolves back to the real stored event, so acting on any occurrence
+  // `id` may be a virtual recurring-occurrence id (`realId::date`) — the API
+  // resolves it back to the real stored event, so acting on any occurrence
   // acts on the whole series.
   const removeEvent = useCallback((id: string) => {
-    const realId = baseEventId(id);
-    setStore(store.filter((event) => event.id !== realId));
+    setStore(store.filter((event) => event.id !== baseEventId(id)));
+    fetch(`/api/events/${baseEventId(id)}`, { method: "DELETE" }).finally(refresh);
   }, []);
 
   // Re-inserts a previously-removed event with its original id intact, for undo.
   const restoreEvent = useCallback((event: ScheduleEvent) => {
     setStore(sortEvents([...store.filter((e) => e.id !== event.id), event]));
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+    }).finally(refresh);
   }, []);
 
   const updateEvent = useCallback(
@@ -98,6 +111,11 @@ export function useScheduleEvents() {
       setStore(
         sortEvents(store.map((event) => (event.id === realId ? { ...event, ...changes } : event)))
       );
+      fetch(`/api/events/${realId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      }).finally(refresh);
     },
     []
   );

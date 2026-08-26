@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { TODOS_STORAGE_KEY, Todo, sortTodos } from "@/lib/todos";
-import { removeEventsByTodoId } from "@/hooks/useScheduleEvents";
+import { Todo, sortTodos } from "@/lib/todos";
+import { refreshScheduleEventsCache } from "@/hooks/useScheduleEvents";
 
 let store: Todo[] = [];
 let hydrated = false;
+let hydrating = false;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -14,22 +15,28 @@ function emit() {
 
 function setStore(next: Todo[]) {
   store = next;
-  window.localStorage.setItem(TODOS_STORAGE_KEY, JSON.stringify(store));
   emit();
 }
 
-function ensureHydrated() {
-  if (hydrated || typeof window === "undefined") return;
-  const raw = window.localStorage.getItem(TODOS_STORAGE_KEY);
-  if (raw) {
-    try {
-      store = sortTodos(JSON.parse(raw));
-    } catch {
-      store = [];
-    }
+async function refresh() {
+  try {
+    const res = await fetch("/api/todos");
+    const data = await res.json();
+    setStore(sortTodos(data.todos ?? []));
+  } catch {
+    // Leave the cache as-is on a network failure — the next successful
+    // mutation's refresh will resync it.
   }
-  hydrated = true;
-  emit();
+}
+
+function ensureHydrated() {
+  if (hydrated || hydrating || typeof window === "undefined") return;
+  hydrating = true;
+  refresh().finally(() => {
+    hydrated = true;
+    hydrating = false;
+    emit();
+  });
 }
 
 function subscribe(listener: () => void) {
@@ -56,23 +63,26 @@ export function useTodos() {
   const loaded = useSyncExternalStore(subscribe, getHydratedSnapshot, () => false);
 
   const addTodo = useCallback((todo: Omit<Todo, "id" | "done">) => {
-    setStore(sortTodos([...store, { ...todo, id: crypto.randomUUID(), done: false }]));
+    const tempId = `temp-${crypto.randomUUID()}`;
+    setStore(sortTodos([...store, { ...todo, id: tempId, done: false }]));
+    fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(todo),
+    }).finally(refresh);
   }, []);
 
   const toggleTodo = useCallback((id: string) => {
-    setStore(
-      sortTodos(
-        store.map((todo) =>
-          todo.id === id
-            ? {
-                ...todo,
-                done: !todo.done,
-                completedAt: !todo.done ? new Date().toISOString() : undefined,
-              }
-            : todo
-        )
-      )
-    );
+    const target = store.find((todo) => todo.id === id);
+    if (!target) return;
+    const done = !target.done;
+    const completedAt = done ? new Date().toISOString() : undefined;
+    setStore(sortTodos(store.map((todo) => (todo.id === id ? { ...todo, done, completedAt } : todo))));
+    fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done, completedAt: completedAt ?? null }),
+    }).finally(refresh);
   }, []);
 
   const updateTodo = useCallback((id: string, changes: Partial<Omit<Todo, "id">>) => {
@@ -88,28 +98,31 @@ export function useTodos() {
         })
       )
     );
+    fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    }).finally(refresh);
   }, []);
 
   const removeTodo = useCallback((id: string) => {
     setStore(store.filter((todo) => todo.id !== id));
-    removeEventsByTodoId(id);
+    fetch(`/api/todos/${id}`, { method: "DELETE" }).finally(() => {
+      refresh();
+      refreshScheduleEventsCache();
+    });
   }, []);
 
   const toggleSubtask = useCallback((todoId: string, subtaskId: string) => {
-    setStore(
-      sortTodos(
-        store.map((todo) =>
-          todo.id === todoId
-            ? {
-                ...todo,
-                subtasks: (todo.subtasks ?? []).map((s) =>
-                  s.id === subtaskId ? { ...s, done: !s.done } : s
-                ),
-              }
-            : todo
-        )
-      )
-    );
+    const target = store.find((todo) => todo.id === todoId);
+    if (!target) return;
+    const subtasks = (target.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
+    setStore(sortTodos(store.map((todo) => (todo.id === todoId ? { ...todo, subtasks } : todo))));
+    fetch(`/api/todos/${todoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subtasks }),
+    }).finally(refresh);
   }, []);
 
   return { todos, loaded, addTodo, toggleTodo, updateTodo, removeTodo, toggleSubtask };

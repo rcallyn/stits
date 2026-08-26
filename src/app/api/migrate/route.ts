@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server";
+import { sql } from "@/lib/db";
+import { BackupData, isBackupData } from "@/lib/backup";
+
+// Imports a BackupData payload into Postgres. Two modes, both idempotent-
+// safe with ON CONFLICT DO NOTHING for the per-row inserts:
+// - replace: false (default) — a one-time merge of this browser's
+//   pre-migration localStorage data; existing rows are left untouched.
+// - replace: true — used by the "Import backup" file button, which has
+//   always told the user it replaces everything; clears the three tables
+//   first so the import fully matches the file's contents.
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  if (!isBackupData(body)) {
+    return NextResponse.json({ error: "That doesn't look like a stits backup." }, { status: 400 });
+  }
+  const data = body as BackupData & { replace?: boolean };
+  const replace = data.replace === true;
+
+  await sql.begin(async (tx) => {
+    if (replace) {
+      await tx`delete from schedule_events`;
+      await tx`delete from notes`;
+      await tx`delete from todos`;
+    }
+
+    for (const todo of data.todos) {
+      await tx`
+        insert into todos (id, title, done, due_date, category, priority, subtasks, completed_at, canvas_id)
+        values (
+          ${todo.id}, ${todo.title}, ${todo.done}, ${todo.dueDate ?? null},
+          ${todo.category ?? null}, ${todo.priority ?? null},
+          ${todo.subtasks ? tx.json(todo.subtasks) : null},
+          ${todo.completedAt ?? null}, ${todo.canvasId ?? null}
+        )
+        on conflict (id) do nothing
+      `;
+    }
+
+    for (const event of data.scheduleEvents) {
+      await tx`
+        insert into schedule_events
+          (id, title, date, end_date, time, end_time, todo_id, category, done, notes, is_note_event, recurrence, canvas_id)
+        values (
+          ${event.id}, ${event.title}, ${event.date}, ${event.endDate ?? null},
+          ${event.time ?? ""}, ${event.endTime ?? null}, ${event.todoId ?? null},
+          ${event.category ?? null}, ${event.done ?? null},
+          ${event.notes ? tx.json(event.notes) : null}, ${event.isNoteEvent ?? null},
+          ${event.recurrence ? tx.json(event.recurrence) : null}, ${event.canvasId ?? null}
+        )
+        on conflict (id) do nothing
+      `;
+    }
+
+    for (const note of data.notes) {
+      await tx`
+        insert into notes (id, text, tag, created_at, pinned)
+        values (${note.id}, ${note.text}, ${note.tag}, ${note.createdAt}, ${note.pinned ?? null})
+        on conflict (id) do nothing
+      `;
+    }
+
+    await tx`
+      update settings set
+        category_colors = ${tx.json(data.categoryColors ?? {})},
+        category_labels = ${tx.json(data.categoryLabels ?? {})},
+        category_order = ${tx.json(data.categoryOrder ?? [])}
+      where id = 1
+    `;
+  });
+
+  return NextResponse.json({ ok: true });
+}

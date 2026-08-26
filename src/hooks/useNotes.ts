@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { NOTES_STORAGE_KEY, Note, sortNotes } from "@/lib/notes";
+import { Note, sortNotes } from "@/lib/notes";
 
 let store: Note[] = [];
 let hydrated = false;
+let hydrating = false;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -13,22 +14,28 @@ function emit() {
 
 function setStore(next: Note[]) {
   store = next;
-  window.localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(store));
   emit();
 }
 
-function ensureHydrated() {
-  if (hydrated || typeof window === "undefined") return;
-  const raw = window.localStorage.getItem(NOTES_STORAGE_KEY);
-  if (raw) {
-    try {
-      store = sortNotes(JSON.parse(raw));
-    } catch {
-      store = [];
-    }
+async function refresh() {
+  try {
+    const res = await fetch("/api/notes");
+    const data = await res.json();
+    setStore(sortNotes(data.notes ?? []));
+  } catch {
+    // Leave the cache as-is on a network failure — the next successful
+    // mutation's refresh will resync it.
   }
-  hydrated = true;
-  emit();
+}
+
+function ensureHydrated() {
+  if (hydrated || hydrating || typeof window === "undefined") return;
+  hydrating = true;
+  refresh().finally(() => {
+    hydrated = true;
+    hydrating = false;
+    emit();
+  });
 }
 
 function subscribe(listener: () => void) {
@@ -55,26 +62,39 @@ export function useNotes() {
   const loaded = useSyncExternalStore(subscribe, getHydratedSnapshot, () => false);
 
   const addNote = useCallback((note: Omit<Note, "id" | "createdAt">) => {
-    setStore(
-      sortNotes([
-        ...store,
-        { ...note, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
-      ])
-    );
+    const tempId = `temp-${crypto.randomUUID()}`;
+    setStore(sortNotes([...store, { ...note, id: tempId, createdAt: new Date().toISOString() }]));
+    fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(note),
+    }).finally(refresh);
   }, []);
 
   const updateNote = useCallback((id: string, changes: Partial<Omit<Note, "id" | "createdAt">>) => {
     setStore(sortNotes(store.map((note) => (note.id === id ? { ...note, ...changes } : note))));
+    fetch(`/api/notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    }).finally(refresh);
   }, []);
 
   const removeNote = useCallback((id: string) => {
     setStore(store.filter((note) => note.id !== id));
+    fetch(`/api/notes/${id}`, { method: "DELETE" }).finally(refresh);
   }, []);
 
   const togglePinNote = useCallback((id: string) => {
-    setStore(
-      sortNotes(store.map((note) => (note.id === id ? { ...note, pinned: !note.pinned } : note)))
-    );
+    const target = store.find((note) => note.id === id);
+    if (!target) return;
+    const pinned = !target.pinned;
+    setStore(sortNotes(store.map((note) => (note.id === id ? { ...note, pinned } : note))));
+    fetch(`/api/notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    }).finally(refresh);
   }, []);
 
   return { notes, loaded, addNote, updateNote, removeNote, togglePinNote };

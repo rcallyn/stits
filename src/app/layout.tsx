@@ -24,7 +24,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <Nav />
-        <div className="flex flex-1 flex-col">{children}</div>
+        <div className="flex flex-1 flex-col pb-16 md:pb-0">{children}</div>
         <SearchPalette />
       </body>
     </html>

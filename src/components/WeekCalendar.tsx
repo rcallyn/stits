@@ -65,9 +65,13 @@ export default function WeekCalendar({
   const hasAllDay = expanded.some((e) => !e.time);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col overflow-x-auto">
+      <div className="min-w-max">
       <div className="flex border-b border-black/[.08] dark:border-white/[.145]">
-        <div style={{ width: GUTTER_WIDTH }} className="shrink-0" />
+        <div
+          style={{ width: GUTTER_WIDTH }}
+          className="sticky left-0 z-10 shrink-0 bg-background"
+        />
         {days.map((date) => {
           const [y, m, d] = date.split("-").map(Number);
           const weekday = new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short" });
@@ -77,7 +81,7 @@ export default function WeekCalendar({
               key={date}
               type="button"
               onClick={() => onSelectDay(date)}
-              className="flex flex-1 flex-col items-center gap-1 py-2 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]"
+              className="flex min-w-[100px] flex-1 flex-col items-center gap-1 py-2 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]"
             >
               <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
                 {weekday}
@@ -96,11 +100,14 @@ export default function WeekCalendar({
 
       {hasAllDay && (
         <div className="flex border-b border-black/[.08] dark:border-white/[.145]">
-          <div style={{ width: GUTTER_WIDTH }} className="shrink-0" />
+          <div
+            style={{ width: GUTTER_WIDTH }}
+            className="sticky left-0 z-10 shrink-0 bg-background"
+          />
           {days.map((date) => {
             const allDayEvents = expanded.filter((e) => isEventOnDate(e, date) && !e.time);
             return (
-              <div key={date} className="flex flex-1 flex-col gap-0.5 px-1 py-1">
+              <div key={date} className="flex min-w-[100px] flex-1 flex-col gap-0.5 px-1 py-1">
                 {allDayEvents.slice(0, ALL_DAY_VISIBLE).map((event) => {
                   const color = resolveColor(event.todoId ?? event.id, event.category, categoryColors);
                   const kind = scheduleEventKind(event);
@@ -132,7 +139,10 @@ export default function WeekCalendar({
       )}
 
       <div className="flex">
-        <div className="relative shrink-0" style={{ width: GUTTER_WIDTH, height: totalHeight }}>
+        <div
+          className="sticky left-0 z-10 relative shrink-0 bg-background"
+          style={{ width: GUTTER_WIDTH, height: totalHeight }}
+        >
           {hours.map((hour) => (
             <span
               key={hour}
@@ -152,7 +162,7 @@ export default function WeekCalendar({
           return (
             <div
               key={date}
-              className="relative flex-1 border-l border-black/[.08] dark:border-white/[.145]"
+              className="relative min-w-[100px] flex-1 border-l border-black/[.08] dark:border-white/[.145]"
               style={{ height: totalHeight }}
             >
               {hours.map((hour) => (
@@ -212,6 +222,7 @@ export default function WeekCalendar({
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

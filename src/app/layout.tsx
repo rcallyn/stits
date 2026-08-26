@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Nav from "@/components/Nav";
 import SearchPalette from "@/components/SearchPalette";
 import "./globals.css";
@@ -6,6 +6,15 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "stits",
   description: "Schedule, todos, and everything else in one place.",
+  appleWebApp: {
+    capable: true,
+    title: "stits",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#000000",
 };
 
 export default function RootLayout({

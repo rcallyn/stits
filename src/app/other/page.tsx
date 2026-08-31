@@ -12,6 +12,7 @@ import { formatNoteTimestamp, Note } from "@/lib/notes";
 import { Todo } from "@/lib/todos";
 import { Category, CATEGORY_LIST, isCategory } from "@/lib/categories";
 import TodoEditModal from "@/components/TodoEditModal";
+import NoteEditModal from "@/components/NoteEditModal";
 import TodoMeta from "@/components/TodoMeta";
 import ColorSwatchPicker from "@/components/ColorSwatchPicker";
 import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
@@ -26,7 +27,7 @@ type Kind = "todo" | "note";
 
 export default function OtherPage() {
   const { todos, loaded: todosLoaded, addTodo, toggleTodo, updateTodo, removeTodo } = useTodos();
-  const { notes, loaded: notesLoaded, addNote, removeNote, togglePinNote } = useNotes();
+  const { notes, loaded: notesLoaded, addNote, updateNote, removeNote, togglePinNote } = useNotes();
   const { setPendingNoteId } = usePendingNoteId();
   const { overrides: categoryColors, setCategoryColor } = useCategoryColors();
   const { labelFor, setCategoryLabel } = useCategoryLabels();
@@ -34,6 +35,7 @@ export default function OtherPage() {
   const router = useRouter();
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<Category | null>(null);
   const [editingLabel, setEditingLabel] = useState<Category | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -299,7 +301,13 @@ export default function OtherPage() {
                       className="flex flex-col gap-2 rounded-md bg-black/[.03] px-3 py-2 dark:bg-white/[.05]"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm">{note.text}</p>
+                        <button
+                          type="button"
+                          onClick={() => setEditingNote(note)}
+                          className="text-left text-sm hover:underline"
+                        >
+                          {note.text}
+                        </button>
                         <div className="flex shrink-0 items-center gap-2">
                           <button
                             onClick={() => togglePinNote(note.id)}
@@ -401,6 +409,14 @@ export default function OtherPage() {
           onSave={(id, changes) => updateTodo(id, changes)}
           onDelete={removeTodo}
           onClose={() => setEditingTodo(null)}
+        />
+      )}
+      {editingNote && (
+        <NoteEditModal
+          note={editingNote}
+          onSave={(id, changes) => updateNote(id, changes)}
+          onDelete={removeNote}
+          onClose={() => setEditingNote(null)}
         />
       )}
     </main>

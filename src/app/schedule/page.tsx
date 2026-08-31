@@ -5,8 +5,10 @@ import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { formatEventDate, formatEventTime, todayISODate, ScheduleEvent } from "@/lib/schedule";
+import { Todo } from "@/lib/todos";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
+import TodoEditModal from "@/components/TodoEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import TodoMeta from "@/components/TodoMeta";
 import { TODO_DRAG_TYPE, EVENT_DRAG_TYPE } from "@/lib/dnd";
@@ -17,13 +19,14 @@ const fieldClass =
 
 export default function SchedulePage() {
   const { events, loaded, addEvent, removeEvent, restoreEvent, updateEvent } = useScheduleEvents();
-  const { todos, toggleTodo, removeTodo } = useTodos();
+  const { todos, toggleTodo, updateTodo, removeTodo } = useTodos();
   const { overrides: categoryColors } = useCategoryColors();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [dragOverList, setDragOverList] = useState(false);
   const [dragOverTrash, setDragOverTrash] = useState(false);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
@@ -285,13 +288,17 @@ export default function SchedulePage() {
                           resolveColor(todo.id, todo.category, categoryColors).dot
                         }`}
                       />
-                      <p
+                      <button
+                        type="button"
+                        onClick={() => setEditingTodo(todo)}
                         className={
-                          todo.done ? "truncate font-medium line-through text-zinc-400" : "truncate font-medium"
+                          todo.done
+                            ? "truncate text-left font-medium line-through text-zinc-400"
+                            : "truncate text-left font-medium"
                         }
                       >
                         {todo.title}
-                      </p>
+                      </button>
                     </div>
                     <TodoMeta todo={todo} />
                     <div className="mt-1 flex items-center gap-2">
@@ -318,6 +325,15 @@ export default function SchedulePage() {
           onSave={(id, changes) => updateEvent(id, changes)}
           onDelete={handleRemove}
           onClose={() => setEditingEvent(null)}
+        />
+      )}
+
+      {editingTodo && (
+        <TodoEditModal
+          todo={editingTodo}
+          onSave={(id, changes) => updateTodo(id, changes)}
+          onDelete={removeTodo}
+          onClose={() => setEditingTodo(null)}
         />
       )}
 

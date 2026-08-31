@@ -23,11 +23,12 @@ import { useCategoryColors } from "@/hooks/useCategoryColors";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
 import TodoEditModal from "@/components/TodoEditModal";
+import NoteEditModal from "@/components/NoteEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import IOSDatePicker from "@/components/IOSDatePicker";
 import StatsWidget from "@/components/StatsWidget";
 import WeekCalendar from "@/components/WeekCalendar";
-import { formatNoteTimestamp } from "@/lib/notes";
+import { formatNoteTimestamp, Note } from "@/lib/notes";
 import { NOTE_DRAG_TYPE, TODO_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
 import { weekDates } from "@/lib/monthGrid";
@@ -49,13 +50,14 @@ function formatWeekRangeLabel(start: string, end: string) {
 export default function Home() {
   const { events, loaded: eventsLoaded, addEvent, updateEvent, removeEvent } = useScheduleEvents();
   const { todos, loaded: todosLoaded, toggleTodo, updateTodo, removeTodo } = useTodos();
-  const { notes, loaded: notesLoaded, updateNote } = useNotes();
+  const { notes, loaded: notesLoaded, updateNote, removeNote } = useNotes();
   const { pendingNoteId, setPendingNoteId } = usePendingNoteId();
   const { jumpToDate, setJumpToDate } = useJumpToDate();
   const { overrides: categoryColors } = useCategoryColors();
 
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [dragOverToday, setDragOverToday] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayISODate());
@@ -538,20 +540,26 @@ export default function Home() {
                   }}
                   className="cursor-grab rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      {note.pinned && (
-                        <span className="text-amber-500" aria-label="Pinned">
-                          ★
-                        </span>
-                      )}
-                      <CategoryBadge category={note.tag} />
+                  <button
+                    type="button"
+                    onClick={() => setEditingNote(note)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {note.pinned && (
+                          <span className="text-amber-500" aria-label="Pinned">
+                            ★
+                          </span>
+                        )}
+                        <CategoryBadge category={note.tag} />
+                      </div>
+                      <span className="text-[11px] text-zinc-400">
+                        {formatNoteTimestamp(note.createdAt)}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-zinc-400">
-                      {formatNoteTimestamp(note.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm">{note.text}</p>
+                    <p className="mt-1 line-clamp-2 text-sm">{note.text}</p>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -575,6 +583,14 @@ export default function Home() {
           onSave={(id, changes) => updateTodo(id, changes)}
           onDelete={removeTodo}
           onClose={() => setEditingTodo(null)}
+        />
+      )}
+      {editingNote && (
+        <NoteEditModal
+          note={editingNote}
+          onSave={(id, changes) => updateNote(id, changes)}
+          onDelete={removeNote}
+          onClose={() => setEditingNote(null)}
         />
       )}
     </main>

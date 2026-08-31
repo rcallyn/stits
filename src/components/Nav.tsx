@@ -4,14 +4,20 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemePreference, useTheme } from "@/hooks/useTheme";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
+import TabBarIcon, { TabIconName } from "@/components/TabBarIcon";
 
-const links = [
-  { href: "/", label: "Dashboard", icon: "🏠" },
-  { href: "/calendar", label: "Calendar", icon: "📅" },
-  { href: "/schedule", label: "Schedule", icon: "⏰" },
-  { href: "/todos", label: "Todos", icon: "✅" },
-  { href: "/other", label: "Other", icon: "📁" },
+const links: { href: string; label: string; icon: TabIconName }[] = [
+  { href: "/", label: "Dashboard", icon: "home" },
+  { href: "/calendar", label: "Calendar", icon: "calendar" },
+  { href: "/schedule", label: "Schedule", icon: "clock" },
+  { href: "/todos", label: "Todos", icon: "check-circle" },
+  { href: "/other", label: "Other", icon: "folder" },
 ];
+
+// Apple's iOS-dark-mode system blue — the standard tint iOS uses for a
+// selected tab bar item, chosen to read clearly against the tab bar's
+// permanently-dark background.
+const ACTIVE_TINT = "#0a84ff";
 
 const THEME_ORDER: ThemePreference[] = ["system", "light", "dark"];
 const THEME_ICON: Record<ThemePreference, string> = { system: "🖥️", light: "☀️", dark: "🌙" };
@@ -86,7 +92,7 @@ export default function Nav() {
       </header>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 flex bg-black/80 pb-[env(safe-area-inset-bottom)] text-white [backdrop-filter:saturate(180%)_blur(20px)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-white/10 bg-black/80 pb-[env(safe-area-inset-bottom)] pt-1.5 [backdrop-filter:saturate(180%)_blur(20px)] md:hidden"
         aria-label="Primary"
       >
         {links.map(({ href, label, icon }) => {
@@ -95,11 +101,12 @@ export default function Nav() {
             <Link
               key={href}
               href={href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
-                active ? "text-white" : "text-white/60 hover:text-white"
+              style={active ? { color: ACTIVE_TINT } : undefined}
+              className={`flex flex-1 flex-col items-center gap-0.5 py-1 text-[10px] font-medium transition-colors active:opacity-60 ${
+                active ? "" : "text-white/45"
               }`}
             >
-              <span className="text-base leading-none">{icon}</span>
+              <TabBarIcon name={icon} active={active} className="h-6 w-6" />
               {label}
             </Link>
           );

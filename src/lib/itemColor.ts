@@ -40,6 +40,7 @@ export const DEFAULT_CATEGORY_COLOR_KEY: Record<Category, string> = {
   career: "indigo",
   school: "sky",
   house: "slate",
+  other: "violet",
 };
 
 function hashString(value: string): number {

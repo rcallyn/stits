@@ -91,7 +91,7 @@ export default function OtherPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Other</h1>
         <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-          Rush, career, school, and house management — todos and notes.
+          Rush, career, school, house management, and everything else — todos and notes.
         </p>
       </div>
 

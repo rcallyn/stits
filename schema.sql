@@ -62,3 +62,23 @@ create table if not exists login_attempts (
   window_start timestamptz not null default now(),
   primary key (scope, ip)
 );
+
+-- This app never uses Supabase's client SDK or its auto-generated REST API
+-- (PostgREST) — every query goes through a direct Postgres connection from
+-- the Next.js server, authenticated by this app's own password+2FA login.
+-- Supabase still exposes every table to that REST API by default though,
+-- using the `anon`/`authenticated` roles, regardless of whether the app
+-- code ever calls it. Enabling RLS with no policies denies those roles
+-- entirely; the server's own connection (the `postgres` role, which has
+-- BYPASSRLS) is unaffected. Revoking the default grants closes the same
+-- gap at the privilege level too.
+do $$
+declare
+  t text;
+begin
+  for t in select unnest(array['todos', 'schedule_events', 'notes', 'settings', 'login_attempts'])
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format('revoke all on %I from anon, authenticated', t);
+  end loop;
+end $$;

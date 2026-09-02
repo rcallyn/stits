@@ -11,9 +11,27 @@ const LIMITS: Record<string, { maxAttempts: number; windowMs: number }> = {
   "2fa": { maxAttempts: 10, windowMs: 15 * 60 * 1000 },
 };
 
+// The client IP used to key brute-force throttling. It must be a value the
+// client can't set itself, or the limits are trivially bypassed by rotating a
+// forged header.
+//
+// On Vercel, `x-real-ip` is set by the platform to the actual connecting
+// address and overwrites anything the client sent. `x-forwarded-for` is
+// *appended* to, so its leftmost entry is attacker-controlled — only its
+// rightmost entry (the hop Vercel saw) is trustworthy. Prefer x-real-ip,
+// fall back to the last x-forwarded-for entry, then a constant (which just
+// means every unknown-IP request shares one bucket — fail closed).
 export function clientIp(req: NextRequest): string {
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
   const forwarded = req.headers.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() || "unknown";
+  if (forwarded) {
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+
+  return "unknown";
 }
 
 export async function isRateLimited(

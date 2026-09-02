@@ -1,8 +1,5 @@
 node_modules
 .next
-.env
-.env.local
-.env*.local
 out
 build
 dist
@@ -10,4 +7,10 @@ dist
 *.log
 *.tsbuildinfo
 .vercel
+
+# Env files — ignore everything except the checked-in example.
+.env
+.env.local
+.env*.local
 .env*
+!.env.example

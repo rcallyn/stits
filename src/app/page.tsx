@@ -28,6 +28,7 @@ import CategoryBadge from "@/components/CategoryBadge";
 import IOSDatePicker from "@/components/IOSDatePicker";
 import StatsWidget from "@/components/StatsWidget";
 import WeekCalendar from "@/components/WeekCalendar";
+import { ListSkeleton, SkeletonLine } from "@/components/Skeleton";
 import { formatNoteTimestamp, Note } from "@/lib/notes";
 import { NOTE_DRAG_TYPE, TODO_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
@@ -399,7 +400,9 @@ export default function Home() {
             dragOverToday ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
           }`}
         >
-          {!eventsLoaded ? null : viewMode === "week" && !pendingNote ? (
+          {!eventsLoaded ? (
+            <SkeletonLine className="h-full min-h-[24rem] w-full" />
+          ) : viewMode === "week" && !pendingNote ? (
             <WeekCalendar
               selectedDate={selectedDate}
               events={events}
@@ -461,7 +464,9 @@ export default function Home() {
         </div>
 
         <div className="mt-4">
-          {!todosLoaded ? null : openTodos.length === 0 ? (
+          {!todosLoaded ? (
+            <ListSkeleton rows={4} />
+          ) : openTodos.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No todos yet.</p>
           ) : (
             <ul className="flex flex-col gap-1">
@@ -526,7 +531,9 @@ export default function Home() {
         </div>
 
         <div className="mt-4">
-          {!notesLoaded ? null : notes.length === 0 ? (
+          {!notesLoaded ? (
+            <ListSkeleton rows={3} />
+          ) : notes.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No notes yet.</p>
           ) : (
             <ul className="flex flex-col gap-2">

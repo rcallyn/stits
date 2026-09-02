@@ -17,6 +17,7 @@ import EventEditModal from "@/components/EventEditModal";
 import TodoEditModal from "@/components/TodoEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import TodoMeta from "@/components/TodoMeta";
+import { ListSkeleton } from "@/components/Skeleton";
 import { TODO_DRAG_TYPE, EVENT_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
 
@@ -186,6 +187,8 @@ export default function SchedulePage() {
             dragOverList ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
           }`}
         >
+          {!loaded && <ListSkeleton />}
+
           {loaded && visibleEvents.length === 0 && (
             <div className="rounded-lg border border-dashed border-black/[.12] p-8 text-center text-sm text-zinc-500 dark:border-white/[.145] dark:text-zinc-400">
               No schedule items yet. Drop a todo here, or add one above.

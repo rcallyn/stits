@@ -5,6 +5,7 @@ import { useTodos } from "@/hooks/useTodos";
 import { Todo } from "@/lib/todos";
 import TodoEditModal from "@/components/TodoEditModal";
 import TodoMeta from "@/components/TodoMeta";
+import { ListSkeleton } from "@/components/Skeleton";
 import { resolveColor } from "@/lib/itemColor";
 
 export default function TodosPage() {
@@ -61,6 +62,8 @@ export default function TodosPage() {
           Add todo
         </button>
       </form>
+
+      {!loaded && <ListSkeleton />}
 
       {loaded && todos.length === 0 && (
         <div className="rounded-lg border border-dashed border-black/[.12] p-8 text-center text-sm text-zinc-500 dark:border-white/[.145] dark:text-zinc-400">

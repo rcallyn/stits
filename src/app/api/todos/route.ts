@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { Todo } from "@/lib/todos";
+import { parseBody } from "@/lib/apiValidation";
+import { todoCreateSchema } from "@/lib/schemas";
 
 type TodoRow = {
   id: string;
@@ -34,16 +36,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { title, dueDate, category, priority, subtasks, canvasId } = body as Partial<Todo>;
-  if (typeof title !== "string" || !title.trim()) {
-    return NextResponse.json({ error: "Missing title." }, { status: 400 });
-  }
+  const parsed = await parseBody(req, todoCreateSchema);
+  if (!parsed.ok) return parsed.response;
+  const { title, dueDate, category, priority, subtasks, canvasId } = parsed.data;
 
   const [row] = await sql<TodoRow[]>`
     insert into todos (title, due_date, category, priority, subtasks, canvas_id)
     values (
-      ${title.trim()},
+      ${title},
       ${dueDate ?? null},
       ${category ?? null},
       ${priority ?? null},

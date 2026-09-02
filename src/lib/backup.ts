@@ -1,6 +1,7 @@
 import { Todo } from "@/lib/todos";
 import { ScheduleEvent } from "@/lib/schedule";
 import { Note } from "@/lib/notes";
+import { REPLACE_CONFIRMATION } from "@/lib/schemas";
 
 export type BackupData = {
   version: 1;
@@ -84,13 +85,18 @@ export function isBackupData(value: unknown): value is BackupData {
 
 // Replaces all server-backed data with the contents of a backup file —
 // matches what this button has always told the user it does ("will replace
-// all current todos, events, and notes").
+// all current todos, events, and notes"). The `confirm` string is required by
+// /api/migrate for any destructive (replace) import.
 export async function applyBackup(data: BackupData) {
-  await fetch("/api/migrate", {
+  const res = await fetch("/api/migrate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, replace: true }),
+    body: JSON.stringify({ ...data, replace: true, confirm: REPLACE_CONFIRMATION }),
   });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "Import failed.");
+  }
   window.location.reload();
 }
 

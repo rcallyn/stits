@@ -1,8 +1,11 @@
 import { randomInt, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createPendingCookieValue, PENDING_COOKIE_NAME, SECURE_COOKIES } from "@/lib/session";
 import { sendPushoverNotification } from "@/lib/pushover";
 import { clientIp, isRateLimited, recordAttempt } from "@/lib/rateLimit";
+
+const bodySchema = z.object({ password: z.string().min(1).max(1024) });
 
 // Constant-time so a network attacker can't use response-time differences to
 // learn how many leading characters of a guess matched.
@@ -26,8 +29,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { password } = await req.json();
-  const ok = typeof password === "string" && passwordMatches(password, process.env.APP_PASSWORD ?? "");
+  const body = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!body.success) {
+    return NextResponse.json({ error: "Missing password." }, { status: 400 });
+  }
+  const ok = passwordMatches(body.data.password, process.env.APP_PASSWORD ?? "");
   await recordAttempt("login", ip, ok);
   if (!ok) {
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });

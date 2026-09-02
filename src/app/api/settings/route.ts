@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { Category } from "@/lib/categories";
+import { parseBody } from "@/lib/apiValidation";
+import { settingsPatchSchema } from "@/lib/schemas";
 
 type SettingsRow = {
   category_colors: Partial<Record<Category, string>>;
@@ -34,7 +36,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const changes = (await req.json()) as Partial<SettingsPayload>;
+  const parsed = await parseBody(req, settingsPatchSchema);
+  if (!parsed.ok) return parsed.response;
+  const changes = parsed.data;
 
   const fields: Record<string, unknown> = {};
   if ("categoryColors" in changes) fields.category_colors = sql.json(changes.categoryColors ?? {});

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { ScheduleEvent } from "@/lib/schedule";
+import { parseBody } from "@/lib/apiValidation";
+import { eventCreateSchema } from "@/lib/schemas";
 
 type EventRow = {
   id: string;
@@ -42,7 +44,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const parsed = await parseBody(req, eventCreateSchema);
+  if (!parsed.ok) return parsed.response;
   const {
     title,
     date,
@@ -55,17 +58,13 @@ export async function POST(req: NextRequest) {
     isNoteEvent,
     recurrence,
     canvasId,
-  } = body as Partial<ScheduleEvent>;
-
-  if (typeof title !== "string" || !title.trim() || typeof date !== "string" || !date) {
-    return NextResponse.json({ error: "Missing title or date." }, { status: 400 });
-  }
+  } = parsed.data;
 
   const [row] = await sql<EventRow[]>`
     insert into schedule_events
       (title, date, end_date, time, end_time, todo_id, category, notes, is_note_event, recurrence, canvas_id)
     values (
-      ${title.trim()},
+      ${title},
       ${date},
       ${endDate ?? null},
       ${time ?? ""},

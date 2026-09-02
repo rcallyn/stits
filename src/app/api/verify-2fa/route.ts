@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
   createSessionCookieValue,
   verifyPendingCookieValue,
@@ -8,6 +9,8 @@ import {
   SECURE_COOKIES,
 } from "@/lib/session";
 import { clientIp, isRateLimited, recordAttempt } from "@/lib/rateLimit";
+
+const bodySchema = z.object({ code: z.string().min(1).max(64) });
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
@@ -19,10 +22,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { code } = await req.json();
-  if (typeof code !== "string") {
+  const body = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!body.success) {
     return NextResponse.json({ error: "Missing code." }, { status: 400 });
   }
+  const { code } = body.data;
 
   const pending = req.cookies.get(PENDING_COOKIE_NAME)?.value;
   const ok = await verifyPendingCookieValue(pending, code);

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { sql } from "@/lib/db";
-import { baseEventId, ScheduleEvent } from "@/lib/schedule";
+import { baseEventId } from "@/lib/schedule";
+import { parseBody } from "@/lib/apiValidation";
+import { eventPatchSchema } from "@/lib/schemas";
+
+const idSchema = z.uuid();
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const realId = baseEventId(id);
-  const changes = (await req.json()) as Partial<Omit<ScheduleEvent, "id">>;
+  const realId = baseEventId((await params).id);
+  if (!idSchema.safeParse(realId).success) {
+    return NextResponse.json({ error: "Invalid event id." }, { status: 400 });
+  }
+
+  const parsed = await parseBody(req, eventPatchSchema);
+  if (!parsed.ok) return parsed.response;
+  const changes = parsed.data;
 
   const fields: Record<string, unknown> = {};
   if ("title" in changes) fields.title = changes.title;
@@ -29,7 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  await sql`delete from schedule_events where id = ${baseEventId(id)}`;
+  const realId = baseEventId((await params).id);
+  if (!idSchema.safeParse(realId).success) {
+    return NextResponse.json({ error: "Invalid event id." }, { status: 400 });
+  }
+  await sql`delete from schedule_events where id = ${realId}`;
   return NextResponse.json({ ok: true });
 }

@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { parsedItemOutputFormat } from "@/lib/quickAdd";
+import { parseBody } from "@/lib/apiValidation";
+import { quickAddRequestSchema } from "@/lib/schemas";
 
 const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
-  const { text, now, history } = await req.json();
+  const parsed = await parseBody(req, quickAddRequestSchema);
+  if (!parsed.ok) return parsed.response;
+  const { text, now, history } = parsed.data;
 
-  if (typeof text !== "string" || !text.trim()) {
-    return NextResponse.json({ error: "Missing text" }, { status: 400 });
-  }
-
-  const nowDate = typeof now === "string" ? now : new Date().toString();
-  const pastTitles: string[] = Array.isArray(history)
-    ? history.filter((title): title is string => typeof title === "string")
-    : [];
+  const nowDate = now ?? new Date().toString();
+  const pastTitles: string[] = history ?? [];
 
   const historyClause = pastTitles.length
     ? ` The user has previously created these items: ${pastTitles

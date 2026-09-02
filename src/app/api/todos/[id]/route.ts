@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { sql } from "@/lib/db";
-import { Todo } from "@/lib/todos";
+import { parseBody } from "@/lib/apiValidation";
+import { todoPatchSchema } from "@/lib/schemas";
+
+const idSchema = z.uuid();
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const changes = (await req.json()) as Partial<Omit<Todo, "id">>;
+  if (!idSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "Invalid todo id." }, { status: 400 });
+  }
+
+  const parsed = await parseBody(req, todoPatchSchema);
+  if (!parsed.ok) return parsed.response;
+  const changes = parsed.data;
 
   const fields: Record<string, unknown> = {};
   if ("title" in changes) fields.title = changes.title;
@@ -27,6 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!idSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "Invalid todo id." }, { status: 400 });
+  }
   await sql`delete from todos where id = ${id}`;
   return NextResponse.json({ ok: true });
 }

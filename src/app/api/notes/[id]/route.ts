@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { sql } from "@/lib/db";
-import { Note } from "@/lib/notes";
+import { parseBody } from "@/lib/apiValidation";
+import { notePatchSchema } from "@/lib/schemas";
+
+const idSchema = z.uuid();
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const changes = (await req.json()) as Partial<Omit<Note, "id" | "createdAt">>;
+  if (!idSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "Invalid note id." }, { status: 400 });
+  }
+
+  const parsed = await parseBody(req, notePatchSchema);
+  if (!parsed.ok) return parsed.response;
+  const changes = parsed.data;
 
   const fields: Record<string, unknown> = {};
   if ("text" in changes) fields.text = changes.text;
@@ -21,6 +31,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!idSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "Invalid note id." }, { status: 400 });
+  }
   await sql`delete from notes where id = ${id}`;
   return NextResponse.json({ ok: true });
 }

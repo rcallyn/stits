@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseIcs } from "@/lib/ics";
+import { parseBody } from "@/lib/apiValidation";
+import { canvasSyncRequestSchema } from "@/lib/schemas";
 
 // Canvas's calendar feed doesn't send CORS headers for arbitrary browser
 // origins, so this fetches and parses it server-side and hands back an
 // already-normalized list.
 export async function POST(req: NextRequest) {
-  const { feedUrl } = await req.json();
-
-  if (typeof feedUrl !== "string" || !feedUrl.trim()) {
-    return NextResponse.json({ error: "Missing Canvas calendar feed URL." }, { status: 400 });
-  }
+  const parsed = await parseBody(req, canvasSyncRequestSchema);
+  if (!parsed.ok) return parsed.response;
+  const { feedUrl } = parsed.data;
 
   let url: URL;
   try {

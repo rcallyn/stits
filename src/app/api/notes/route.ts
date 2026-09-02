@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { Note } from "@/lib/notes";
+import { parseBody } from "@/lib/apiValidation";
+import { noteCreateSchema } from "@/lib/schemas";
 
 type NoteRow = {
   id: string;
@@ -26,14 +28,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { text, tag } = body as Partial<Note>;
-  if (typeof text !== "string" || !text.trim() || typeof tag !== "string") {
-    return NextResponse.json({ error: "Missing text or tag." }, { status: 400 });
-  }
+  const parsed = await parseBody(req, noteCreateSchema);
+  if (!parsed.ok) return parsed.response;
+  const { text, tag } = parsed.data;
 
   const [row] = await sql<NoteRow[]>`
-    insert into notes (text, tag) values (${text.trim()}, ${tag}) returning *
+    insert into notes (text, tag) values (${text}, ${tag}) returning *
   `;
   return NextResponse.json({ note: rowToNote(row) });
 }

@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { BackupData, isBackupData } from "@/lib/backup";
+import { parseBody } from "@/lib/apiValidation";
+import { backupImportSchema, REPLACE_CONFIRMATION } from "@/lib/schemas";
 
-// Imports a BackupData payload into Postgres. Two modes, both idempotent-
-// safe with ON CONFLICT DO NOTHING for the per-row inserts:
+// Imports a backup payload into Postgres. Two modes, both idempotent-safe with
+// ON CONFLICT DO NOTHING for the per-row inserts:
 // - replace: false (default) — a one-time merge of this browser's
 //   pre-migration localStorage data; existing rows are left untouched.
-// - replace: true — used by the "Import backup" file button, which has
-//   always told the user it replaces everything; clears the three tables
-//   first so the import fully matches the file's contents.
+// - replace: true — used by the "Import backup" file button, which has always
+//   told the user it replaces everything; clears the three tables first so the
+//   import fully matches the file's contents. Because that is unrecoverable,
+//   it additionally requires `confirm: "REPLACE ALL DATA"` in the body so a
+//   stray/replayed request can't wipe the database.
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  if (!isBackupData(body)) {
-    return NextResponse.json({ error: "That doesn't look like a stits backup." }, { status: 400 });
-  }
-  const data = body as BackupData & { replace?: boolean };
+  const parsed = await parseBody(req, backupImportSchema);
+  if (!parsed.ok) return parsed.response;
+  const data = parsed.data;
   const replace = data.replace === true;
+
+  if (replace && data.confirm !== REPLACE_CONFIRMATION) {
+    return NextResponse.json(
+      { error: `Destructive import requires confirm: "${REPLACE_CONFIRMATION}".` },
+      { status: 400 }
+    );
+  }
 
   await sql.begin(async (tx) => {
     if (replace) {
@@ -28,7 +36,7 @@ export async function POST(req: NextRequest) {
       await tx`
         insert into todos (id, title, done, due_date, category, priority, subtasks, completed_at, canvas_id)
         values (
-          ${todo.id}, ${todo.title}, ${todo.done}, ${todo.dueDate ?? null},
+          ${todo.id}, ${todo.title}, ${todo.done ?? false}, ${todo.dueDate ?? null},
           ${todo.category ?? null}, ${todo.priority ?? null},
           ${todo.subtasks ? tx.json(todo.subtasks) : null},
           ${todo.completedAt ?? null}, ${todo.canvasId ?? null}

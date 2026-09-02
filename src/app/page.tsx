@@ -121,6 +121,29 @@ export default function Home() {
     setDragOverToday(true);
   }
 
+  // Keyboard/click-accessible equivalents of dragging a todo or note onto the
+  // calendar: schedule it (all-day) for the currently selected date.
+  function scheduleTodoForSelectedDate(todo: Todo) {
+    addEvent({
+      title: todo.title,
+      date: selectedDate,
+      time: "",
+      todoId: todo.id,
+      category: todo.category,
+    });
+  }
+
+  function scheduleNoteForSelectedDate(note: Note) {
+    addEvent({
+      title: truncateForTitle(note.text),
+      date: selectedDate,
+      time: "",
+      category: note.tag,
+      notes: [{ id: crypto.randomUUID(), text: note.text, sourceNoteId: note.id }],
+      isNoteEvent: true,
+    });
+  }
+
   function handleTodayDrop(e: DragEvent) {
     if (viewMode !== "day") return;
     setDragOverToday(false);
@@ -478,7 +501,7 @@ export default function Home() {
                     e.dataTransfer.setData(TODO_DRAG_TYPE, todo.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  className="flex cursor-grab items-center gap-3 rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
+                  className="group flex cursor-grab items-center gap-3 rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
                   <input
                     type="checkbox"
@@ -512,6 +535,15 @@ export default function Home() {
                     )}
                   </button>
                   {todo.category && <CategoryBadge category={todo.category} />}
+                  <button
+                    type="button"
+                    onClick={() => scheduleTodoForSelectedDate(todo)}
+                    aria-label={`Schedule ${todo.title} for ${formatEventDate(selectedDate)}`}
+                    title={`Schedule for ${formatEventDate(selectedDate)}`}
+                    className="shrink-0 rounded px-1 text-zinc-400 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 dark:hover:text-white [@media(hover:none)]:opacity-100"
+                  >
+                    +
+                  </button>
                 </li>
               ))}
             </ul>
@@ -545,28 +577,39 @@ export default function Home() {
                     e.dataTransfer.setData(NOTE_DRAG_TYPE, note.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  className="cursor-grab rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
+                  className="group cursor-grab rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setEditingNote(note)}
-                    className="w-full text-left"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        {note.pinned && (
-                          <span className="text-amber-500" aria-label="Pinned">
-                            ★
-                          </span>
-                        )}
-                        <CategoryBadge category={note.tag} />
+                  <div className="flex items-start justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingNote(note)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {note.pinned && (
+                            <span className="text-amber-500" aria-label="Pinned">
+                              ★
+                            </span>
+                          )}
+                          <CategoryBadge category={note.tag} />
+                        </div>
+                        <span className="text-[11px] text-zinc-400">
+                          {formatNoteTimestamp(note.createdAt)}
+                        </span>
                       </div>
-                      <span className="text-[11px] text-zinc-400">
-                        {formatNoteTimestamp(note.createdAt)}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-sm">{note.text}</p>
-                  </button>
+                      <p className="mt-1 line-clamp-2 text-sm">{note.text}</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scheduleNoteForSelectedDate(note)}
+                      aria-label={`Schedule this note for ${formatEventDate(selectedDate)}`}
+                      title={`Schedule for ${formatEventDate(selectedDate)}`}
+                      className="mt-0.5 shrink-0 rounded px-1 text-zinc-400 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 dark:hover:text-white [@media(hover:none)]:opacity-100"
+                    >
+                      +
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

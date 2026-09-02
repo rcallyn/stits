@@ -47,6 +47,14 @@ export function scheduleEventKind(event: Pick<ScheduleEvent, "todoId" | "isNoteE
   return "event";
 }
 
+// Recurring school-category events are the class schedule — dense enough
+// (a dozen+ weekly occurrences) that they'd otherwise dominate the Schedule
+// tab's list and the Calendar's per-day dots. They still appear on the
+// Dashboard's own week view, which is built to show a week at a glance.
+export function isRecurringClassEvent(event: Pick<ScheduleEvent, "category" | "recurrence">): boolean {
+  return event.category === "school" && Boolean(event.recurrence);
+}
+
 const DEFAULT_DURATION_MINUTES = 15;
 export const MIN_DURATION_MINUTES = 15;
 export const NOTE_TITLE_MAX_LENGTH = 60;

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
-import { expandRecurringEvents, isEventOnDate, todayISODate } from "@/lib/schedule";
+import { expandRecurringEvents, isEventOnDate, isRecurringClassEvent, todayISODate } from "@/lib/schedule";
 import { buildMonthGrid, monthLabel, shiftMonth, WEEKDAY_LETTERS } from "@/lib/monthGrid";
 import { resolveColor } from "@/lib/itemColor";
 
@@ -24,7 +24,8 @@ export default function CalendarPage() {
   const isCurrentMonth = viewYear === todayYear && viewMonth === todayMonth;
   const gridStart = weeks[0][0].date;
   const gridEnd = weeks[weeks.length - 1][6].date;
-  const expandedEvents = expandRecurringEvents(events, gridStart, gridEnd);
+  const dotEvents = events.filter((event) => !isRecurringClassEvent(event));
+  const expandedEvents = expandRecurringEvents(dotEvents, gridStart, gridEnd);
 
   function goToMonth(delta: number) {
     const shifted = shiftMonth(viewYear, viewMonth, delta);

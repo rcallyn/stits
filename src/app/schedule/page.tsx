@@ -4,7 +4,13 @@ import { DragEvent, FormEvent, useRef, useState } from "react";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
-import { formatEventDate, formatEventTime, todayISODate, ScheduleEvent } from "@/lib/schedule";
+import {
+  formatEventDate,
+  formatEventTime,
+  isRecurringClassEvent,
+  todayISODate,
+  ScheduleEvent,
+} from "@/lib/schedule";
 import { Todo } from "@/lib/todos";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
@@ -32,6 +38,10 @@ export default function SchedulePage() {
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
   const [removedEvent, setRemovedEvent] = useState<ScheduleEvent | null>(null);
   const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Recurring classes clutter this list badly (a dozen+ weekly rows) — they
+  // still show on the Dashboard's week view, just not here.
+  const visibleEvents = events.filter((event) => !isRecurringClassEvent(event));
 
   const openTodos = todos.filter((todo) => !todo.done);
 
@@ -176,15 +186,15 @@ export default function SchedulePage() {
             dragOverList ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
           }`}
         >
-          {loaded && events.length === 0 && (
+          {loaded && visibleEvents.length === 0 && (
             <div className="rounded-lg border border-dashed border-black/[.12] p-8 text-center text-sm text-zinc-500 dark:border-white/[.145] dark:text-zinc-400">
               No schedule items yet. Drop a todo here, or add one above.
             </div>
           )}
 
-          {events.length > 0 && (
+          {visibleEvents.length > 0 && (
             <ul className="flex flex-col gap-2">
-              {events.map((event) => (
+              {visibleEvents.map((event) => (
                 <li
                   key={event.id}
                   draggable

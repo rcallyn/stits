@@ -7,6 +7,7 @@
 // useSyncExternalStore and exposes its own slice + public API.
 
 import { Category } from "@/lib/categories";
+import { pushToast } from "@/lib/toast";
 
 export type SettingsPayload = {
   categoryColors: Partial<Record<Category, string>>;
@@ -60,11 +61,18 @@ export function ensureSettingsHydrated() {
 
 export async function patchSettings(changes: Partial<SettingsPayload>) {
   setStore({ ...store, ...changes });
-  await fetch("/api/settings", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(changes),
-  }).finally(refresh);
+  try {
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+  } catch {
+    pushToast("Couldn't save that setting — your change was undone.");
+  } finally {
+    await refresh();
+  }
 }
 
 export function subscribeSettings(listener: () => void) {

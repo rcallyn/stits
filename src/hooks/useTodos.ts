@@ -2,127 +2,108 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { Todo, sortTodos } from "@/lib/todos";
-import { refreshScheduleEventsCache } from "@/hooks/useScheduleEvents";
+import { createEntityStore } from "@/lib/createEntityStore";
+import { eventStore } from "@/hooks/useScheduleEvents";
 
-let store: Todo[] = [];
-let hydrated = false;
-let hydrating = false;
-const listeners = new Set<() => void>();
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
-function emit() {
-  for (const listener of listeners) listener();
-}
-
-function setStore(next: Todo[]) {
-  store = next;
-  emit();
-}
-
-async function refresh() {
-  try {
-    const res = await fetch("/api/todos");
-    const data = await res.json();
-    setStore(sortTodos(data.todos ?? []));
-  } catch {
-    // Leave the cache as-is on a network failure — the next successful
-    // mutation's refresh will resync it.
-  }
-}
-
-function ensureHydrated() {
-  if (hydrated || hydrating || typeof window === "undefined") return;
-  hydrating = true;
-  refresh().finally(() => {
-    hydrated = true;
-    hydrating = false;
-    emit();
-  });
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getStoreSnapshot() {
-  return store;
-}
-
-function getHydratedSnapshot() {
-  return hydrated;
-}
-
-const EMPTY_TODOS: Todo[] = [];
+export const todoStore = createEntityStore<Todo>({
+  endpoint: "/api/todos",
+  fromResponse: (data) => sortTodos((data as { todos?: Todo[] }).todos ?? []),
+  noun: "todo",
+});
 
 export function useTodos() {
   useEffect(() => {
-    ensureHydrated();
+    todoStore.ensureHydrated();
   }, []);
 
-  const todos = useSyncExternalStore(subscribe, getStoreSnapshot, () => EMPTY_TODOS);
-  const loaded = useSyncExternalStore(subscribe, getHydratedSnapshot, () => false);
+  const todos = useSyncExternalStore(
+    todoStore.subscribe,
+    todoStore.getSnapshot,
+    todoStore.getServerSnapshot
+  );
+  const loaded = useSyncExternalStore(
+    todoStore.subscribe,
+    todoStore.getHydratedSnapshot,
+    todoStore.getServerHydratedSnapshot
+  );
 
   const addTodo = useCallback((todo: Omit<Todo, "id" | "done">) => {
     const tempId = `temp-${crypto.randomUUID()}`;
-    setStore(sortTodos([...store, { ...todo, id: tempId, done: false }]));
-    fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(todo),
-    }).finally(refresh);
+    todoStore.mutate(
+      (cur) => sortTodos([...cur, { ...todo, id: tempId, done: false }]),
+      () => fetch("/api/todos", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(todo) }),
+      { action: "add" }
+    );
   }, []);
 
   const toggleTodo = useCallback((id: string) => {
-    const target = store.find((todo) => todo.id === id);
+    const target = todoStore.getAll().find((todo) => todo.id === id);
     if (!target) return;
     const done = !target.done;
     const completedAt = done ? new Date().toISOString() : undefined;
-    setStore(sortTodos(store.map((todo) => (todo.id === id ? { ...todo, done, completedAt } : todo))));
-    fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done, completedAt: completedAt ?? null }),
-    }).finally(refresh);
+    todoStore.mutate(
+      (cur) => sortTodos(cur.map((todo) => (todo.id === id ? { ...todo, done, completedAt } : todo))),
+      () =>
+        fetch(`/api/todos/${id}`, {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ done, completedAt: completedAt ?? null }),
+        }),
+      { action: "update" }
+    );
   }, []);
 
   const updateTodo = useCallback((id: string, changes: Partial<Omit<Todo, "id">>) => {
-    setStore(
-      sortTodos(
-        store.map((todo) => {
-          if (todo.id !== id) return todo;
-          const next = { ...todo, ...changes };
-          if (changes.done !== undefined && changes.done !== todo.done) {
-            next.completedAt = changes.done ? new Date().toISOString() : undefined;
-          }
-          return next;
-        })
-      )
+    todoStore.mutate(
+      (cur) =>
+        sortTodos(
+          cur.map((todo) => {
+            if (todo.id !== id) return todo;
+            const next = { ...todo, ...changes };
+            if (changes.done !== undefined && changes.done !== todo.done) {
+              next.completedAt = changes.done ? new Date().toISOString() : undefined;
+            }
+            return next;
+          })
+        ),
+      () =>
+        fetch(`/api/todos/${id}`, {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(changes),
+        }),
+      { action: "update" }
     );
-    fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(changes),
-    }).finally(refresh);
   }, []);
 
   const removeTodo = useCallback((id: string) => {
-    setStore(store.filter((todo) => todo.id !== id));
-    fetch(`/api/todos/${id}`, { method: "DELETE" }).finally(() => {
-      refresh();
-      refreshScheduleEventsCache();
-    });
+    todoStore.mutate(
+      (cur) => cur.filter((todo) => todo.id !== id),
+      () => fetch(`/api/todos/${id}`, { method: "DELETE" }),
+      // A todo delete cascades to its linked schedule events in Postgres;
+      // refetch that store too so its cache matches.
+      { action: "delete", afterRefresh: () => eventStore.refresh() }
+    );
   }, []);
 
   const toggleSubtask = useCallback((todoId: string, subtaskId: string) => {
-    const target = store.find((todo) => todo.id === todoId);
+    const target = todoStore.getAll().find((todo) => todo.id === todoId);
     if (!target) return;
-    const subtasks = (target.subtasks ?? []).map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
-    setStore(sortTodos(store.map((todo) => (todo.id === todoId ? { ...todo, subtasks } : todo))));
-    fetch(`/api/todos/${todoId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subtasks }),
-    }).finally(refresh);
+    const subtasks = (target.subtasks ?? []).map((s) =>
+      s.id === subtaskId ? { ...s, done: !s.done } : s
+    );
+    todoStore.mutate(
+      (cur) => sortTodos(cur.map((todo) => (todo.id === todoId ? { ...todo, subtasks } : todo))),
+      () =>
+        fetch(`/api/todos/${todoId}`, {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ subtasks }),
+        }),
+      { action: "update" }
+    );
   }, []);
 
   return { todos, loaded, addTodo, toggleTodo, updateTodo, removeTodo, toggleSubtask };

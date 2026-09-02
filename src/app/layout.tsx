@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Nav from "@/components/Nav";
 import SearchPalette from "@/components/SearchPalette";
+import Toaster from "@/components/Toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -35,6 +36,7 @@ export default function RootLayout({
         <Nav />
         <div className="flex flex-1 flex-col pb-16 md:pb-0">{children}</div>
         <SearchPalette />
+        <Toaster />
       </body>
     </html>
   );

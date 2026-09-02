@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import { Category } from "@/lib/categories";
 import { resolveColor } from "@/lib/itemColor";
 import { weekDates } from "@/lib/monthGrid";
@@ -64,8 +67,26 @@ export default function WeekCalendar({
 
   const hasAllDay = expanded.some((e) => !e.time);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // On mobile the day columns overflow horizontally (see the overflow-x-auto
+  // wrapper below), so whichever week is showing opens scrolled to its start
+  // rather than to today. Whenever the visible week changes and it happens
+  // to be the current one, center today's column instead of leaving it to a
+  // manual swipe. Recomputed from selectedDate (rather than depending on the
+  // `days`/`today` values above, which are new array/value references every
+  // render) so this doesn't refight the user's own scrolling on every
+  // unrelated re-render.
+  useEffect(() => {
+    const weekDays = weekDates(selectedDate);
+    const currentToday = todayISODate();
+    if (!weekDays.includes(currentToday)) return;
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-date="${currentToday}"]`);
+    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
+  }, [selectedDate]);
+
   return (
-    <div className="flex flex-col overflow-x-auto">
+    <div ref={scrollRef} className="flex flex-col overflow-x-auto">
       <div className="min-w-max">
       <div className="flex border-b border-black/[.08] dark:border-white/[.145]">
         <div
@@ -80,6 +101,7 @@ export default function WeekCalendar({
             <button
               key={date}
               type="button"
+              data-date={date}
               onClick={() => onSelectDay(date)}
               className="flex min-w-[100px] flex-1 flex-col items-center gap-1 py-2 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]"
             >

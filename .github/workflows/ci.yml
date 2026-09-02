@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
+        env:
+          # The build only needs these to be present, not valid — route
+          # modules read them at request time, not build time.
+          DATABASE_URL: postgres://user:pass@localhost:5432/stits
+          SESSION_SECRET: ci-placeholder-secret
+          APP_PASSWORD: ci-placeholder
+          ANTHROPIC_API_KEY: sk-ant-ci-placeholder

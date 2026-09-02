@@ -82,7 +82,16 @@ export default function WeekCalendar({
     const currentToday = todayISODate();
     if (!weekDays.includes(currentToday)) return;
     const el = scrollRef.current?.querySelector<HTMLElement>(`[data-date="${currentToday}"]`);
-    el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
+    if (!el) return;
+    try {
+      // "auto" (not "smooth") still jumps immediately rather than animating —
+      // "instant" is spec'd too, but Safari/WebKit has a long-standing bug
+      // where it throws instead of scrolling, which took the whole page down
+      // with it since this runs unguarded on every Dashboard load.
+      el.scrollIntoView({ inline: "center", block: "nearest", behavior: "auto" });
+    } catch {
+      // A cosmetic scroll position is never worth crashing the page over.
+    }
   }, [selectedDate]);
 
   return (

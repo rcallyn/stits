@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
 
-const PUBLIC_PATHS = new Set(["/login", "/offline", "/api/login", "/api/verify-2fa"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/offline",
+  "/api/login",
+  "/api/verify-2fa",
+  // Invoked by Vercel Cron, which can't carry the session cookie — the route
+  // itself checks the Authorization: Bearer <CRON_SECRET> header Vercel adds
+  // automatically, so this doesn't weaken the app's actual auth.
+  "/api/cron/daily-digest",
+]);
 // The service worker must be fetchable without a session (see the matcher
 // below, which also excludes it).
 

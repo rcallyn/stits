@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Nav from "@/components/Nav";
 import SearchPalette from "@/components/SearchPalette";
 import Toaster from "@/components/Toaster";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -45,6 +46,7 @@ export default async function RootLayout({
         <div className="flex flex-1 flex-col pb-16 md:pb-0">{children}</div>
         <SearchPalette />
         <Toaster />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

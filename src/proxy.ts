@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
 
-const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/verify-2fa"]);
+const PUBLIC_PATHS = new Set(["/login", "/offline", "/api/login", "/api/verify-2fa"]);
+// The service worker must be fetchable without a session (see the matcher
+// below, which also excludes it).
 
 // A per-request nonce lets us run a strict Content-Security-Policy
 // (`script-src` with no `'unsafe-inline'`) while still allowing Next's inline
@@ -17,6 +19,9 @@ function buildCsp(nonce: string): string {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // Explicit so the service worker registration isn't caught by the
+    // 'strict-dynamic' in script-src (which disables 'self' for scripts).
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -65,5 +70,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|sw.js).*)",
+  ],
 };

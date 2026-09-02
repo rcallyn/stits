@@ -8,6 +8,7 @@ import {
 } from "@/lib/schedule";
 import { isOverdue, Todo } from "@/lib/todos";
 import { sendPushoverNotification } from "@/lib/pushover";
+import { quoteOfTheDay } from "@/lib/quotes";
 
 // Vercel Cron jobs can only run at a fixed UTC time and Hobby-plan projects
 // can't run more often than daily, so a single trigger can't stay pinned to
@@ -90,7 +91,8 @@ export async function GET(req: NextRequest) {
     .filter((todo) => todo.dueDate === today || isOverdue(todo))
     .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
 
-  const lines: string[] = [];
+  const quote = quoteOfTheDay(today);
+  const lines: string[] = [`"${quote.text}" — ${quote.author}`, ""];
   if (todayEvents.length === 0) {
     lines.push("No events today.");
   } else {

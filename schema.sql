@@ -7,6 +7,7 @@ create extension if not exists pgcrypto;
 create table if not exists todos (
   id uuid primary key default gen_random_uuid(),
   title text not null,
+  description text,
   done boolean not null default false,
   due_date date,
   category text,
@@ -30,14 +31,6 @@ create table if not exists schedule_events (
   is_note_event boolean,
   recurrence jsonb,
   canvas_id text
-);
-
-create table if not exists notes (
-  id uuid primary key default gen_random_uuid(),
-  text text not null,
-  tag text not null,
-  created_at timestamptz not null default now(),
-  pinned boolean
 );
 
 create table if not exists settings (
@@ -76,7 +69,7 @@ do $$
 declare
   t text;
 begin
-  for t in select unnest(array['todos', 'schedule_events', 'notes', 'settings', 'login_attempts'])
+  for t in select unnest(array['todos', 'schedule_events', 'settings', 'login_attempts'])
   loop
     execute format('alter table %I enable row level security', t);
     execute format('revoke all on %I from anon, authenticated', t);

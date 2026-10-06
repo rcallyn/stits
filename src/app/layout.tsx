@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import SearchPalette from "@/components/SearchPalette";
 import Toaster from "@/components/Toaster";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import TodoDragGhost from "@/components/TodoDragGhost";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default async function RootLayout({
         <SearchPalette />
         <Toaster />
         <ServiceWorkerRegister />
+        <TodoDragGhost />
       </body>
     </html>
   );

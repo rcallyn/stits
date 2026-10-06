@@ -3,8 +3,8 @@ import {
   canvasSyncRequestSchema,
   eventCreateSchema,
   eventPatchSchema,
-  noteCreateSchema,
   settingsPatchSchema,
+  todoCreateSchema,
   todoPatchSchema,
 } from "@/lib/schemas";
 
@@ -66,9 +66,9 @@ describe("settingsPatchSchema", () => {
 });
 
 describe("misc endpoint schemas", () => {
-  it("noteCreateSchema requires a non-empty text and a known tag", () => {
-    expect(noteCreateSchema.safeParse({ text: "hi", tag: "house" }).success).toBe(true);
-    expect(noteCreateSchema.safeParse({ text: "", tag: "house" }).success).toBe(false);
+  it("todoCreateSchema accepts an optional description", () => {
+    expect(todoCreateSchema.safeParse({ title: "x", description: "notes here" }).success).toBe(true);
+    expect(todoCreateSchema.safeParse({ title: "x" }).success).toBe(true);
   });
 
   it("canvasSyncRequestSchema requires a feedUrl string", () => {

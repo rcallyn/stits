@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import {
@@ -8,29 +8,25 @@ import {
   expandRecurringEvents,
   formatEventDate,
   isEventOnDate,
+  minutesToTime,
   ScheduleEvent,
   shiftISODate,
   todayISODate,
-  truncateForTitle,
 } from "@/lib/schedule";
 import { isOverdue, PRIORITY_META, subtaskProgress, Todo } from "@/lib/todos";
 import DayCalendar from "@/components/DayCalendar";
 import { useTodos } from "@/hooks/useTodos";
-import { useNotes } from "@/hooks/useNotes";
-import { usePendingNoteId } from "@/hooks/usePendingNote";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
+import { DropZone, startTodoDrag, useTodoDropHandler } from "@/hooks/useTodoDrag";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
 import TodoEditModal from "@/components/TodoEditModal";
-import NoteEditModal from "@/components/NoteEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import IOSDatePicker from "@/components/IOSDatePicker";
 import StatsWidget from "@/components/StatsWidget";
 import WeekCalendar from "@/components/WeekCalendar";
 import { ListSkeleton, SkeletonLine } from "@/components/Skeleton";
-import { formatNoteTimestamp, Note } from "@/lib/notes";
-import { NOTE_DRAG_TYPE, TODO_DRAG_TYPE } from "@/lib/dnd";
 import { resolveColor } from "@/lib/itemColor";
 import { weekDates } from "@/lib/monthGrid";
 
@@ -51,16 +47,11 @@ function formatWeekRangeLabel(start: string, end: string) {
 export default function Home() {
   const { events, loaded: eventsLoaded, addEvent, updateEvent, removeEvent } = useScheduleEvents();
   const { todos, loaded: todosLoaded, toggleTodo, updateTodo, removeTodo } = useTodos();
-  const { notes, loaded: notesLoaded, updateNote, removeNote } = useNotes();
-  const { pendingNoteId, setPendingNoteId } = usePendingNoteId();
   const { jumpToDate, setJumpToDate } = useJumpToDate();
   const { overrides: categoryColors } = useCategoryColors();
 
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [dragOverToday, setDragOverToday] = useState(false);
-  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayISODate());
   const [lastAppliedJump, setLastAppliedJump] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"day" | "week">("week");
@@ -88,40 +79,29 @@ export default function Home() {
     }
     return true;
   });
-  const pendingNote = notes.find((n) => n.id === pendingNoteId) ?? null;
 
   useEffect(() => {
     if (jumpToDate) setJumpToDate(null);
   }, [jumpToDate, setJumpToDate]);
 
-  useEffect(() => {
-    if (!pendingNote) return;
-    function handleMove(e: MouseEvent) {
-      setCursorPos({ x: e.clientX, y: e.clientY });
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setPendingNoteId(null);
-    }
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [pendingNote, setPendingNoteId]);
+  // Dragging a todo onto the calendar (WeekCalendar's day columns/headers,
+  // DayCalendar's grid/all-day row) reaches here through one shared handler —
+  // see useTodoDrag.ts for how the drop zone is identified.
+  const handleTodoDrop = useCallback(
+    (todo: Todo, zone: DropZone) => {
+      addEvent({
+        title: todo.title,
+        date: zone.date,
+        time: zone.kind === "timed" ? minutesToTime(zone.minutes) : "",
+        todoId: todo.id,
+        category: todo.category,
+      });
+    },
+    [addEvent]
+  );
+  useTodoDropHandler(handleTodoDrop);
 
-  function handleTodayDragOver(e: DragEvent) {
-    if (
-      viewMode !== "day" ||
-      (!e.dataTransfer.types.includes(TODO_DRAG_TYPE) && !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
-    )
-      return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    setDragOverToday(true);
-  }
-
-  // Keyboard/click-accessible equivalents of dragging a todo or note onto the
+  // Keyboard/click-accessible equivalent of dragging a todo onto the
   // calendar: schedule it (all-day) for the currently selected date.
   function scheduleTodoForSelectedDate(todo: Todo) {
     addEvent({
@@ -130,87 +110,6 @@ export default function Home() {
       time: "",
       todoId: todo.id,
       category: todo.category,
-    });
-  }
-
-  function scheduleNoteForSelectedDate(note: Note) {
-    addEvent({
-      title: truncateForTitle(note.text),
-      date: selectedDate,
-      time: "",
-      category: note.tag,
-      notes: [{ id: crypto.randomUUID(), text: note.text, sourceNoteId: note.id }],
-      isNoteEvent: true,
-    });
-  }
-
-  function handleTodayDrop(e: DragEvent) {
-    if (viewMode !== "day") return;
-    setDragOverToday(false);
-    const todoId = e.dataTransfer.getData(TODO_DRAG_TYPE);
-    if (todoId) {
-      e.preventDefault();
-      const todo = todos.find((t) => t.id === todoId);
-      if (!todo) return;
-      addEvent({
-        title: todo.title,
-        date: selectedDate,
-        time: "",
-        todoId: todo.id,
-        category: todo.category,
-      });
-      return;
-    }
-    const noteId = e.dataTransfer.getData(NOTE_DRAG_TYPE);
-    if (noteId) {
-      e.preventDefault();
-      const note = notes.find((n) => n.id === noteId);
-      if (!note) return;
-      addEvent({
-        title: truncateForTitle(note.text),
-        date: selectedDate,
-        time: "",
-        category: note.tag,
-        notes: [{ id: crypto.randomUUID(), text: note.text, sourceNoteId: note.id }],
-        isNoteEvent: true,
-      });
-    }
-  }
-
-  function handleDropOnTimeSlot(dataTransfer: DataTransfer, time: string) {
-    const todoId = dataTransfer.getData(TODO_DRAG_TYPE);
-    if (todoId) {
-      const todo = todos.find((t) => t.id === todoId);
-      if (!todo) return;
-      addEvent({
-        title: todo.title,
-        date: selectedDate,
-        time,
-        todoId: todo.id,
-        category: todo.category,
-      });
-      return;
-    }
-    const noteId = dataTransfer.getData(NOTE_DRAG_TYPE);
-    if (noteId) {
-      const note = notes.find((n) => n.id === noteId);
-      if (!note) return;
-      addEvent({
-        title: truncateForTitle(note.text),
-        date: selectedDate,
-        time,
-        category: note.tag,
-        notes: [{ id: crypto.randomUUID(), text: note.text, sourceNoteId: note.id }],
-        isNoteEvent: true,
-      });
-    }
-  }
-
-  function handleDropNoteOnEvent(event: ScheduleEvent, noteId: string) {
-    const note = notes.find((n) => n.id === noteId);
-    if (!note) return;
-    updateEvent(event.id, {
-      notes: [...(event.notes ?? []), { id: crypto.randomUUID(), text: note.text, sourceNoteId: note.id }],
     });
   }
 
@@ -227,43 +126,6 @@ export default function Home() {
     }
   }
 
-  function handlePlaceAtTime(time: string) {
-    if (!pendingNote) return;
-    addEvent({
-      title: truncateForTitle(pendingNote.text),
-      date: selectedDate,
-      time,
-      category: pendingNote.tag,
-      notes: [{ id: crypto.randomUUID(), text: pendingNote.text, sourceNoteId: pendingNote.id }],
-      isNoteEvent: true,
-    });
-    setPendingNoteId(null);
-  }
-
-  function handlePlaceAllDay() {
-    if (!pendingNote) return;
-    addEvent({
-      title: truncateForTitle(pendingNote.text),
-      date: selectedDate,
-      time: "",
-      category: pendingNote.tag,
-      notes: [{ id: crypto.randomUUID(), text: pendingNote.text, sourceNoteId: pendingNote.id }],
-      isNoteEvent: true,
-    });
-    setPendingNoteId(null);
-  }
-
-  function handlePlaceOnEvent(event: ScheduleEvent) {
-    if (!pendingNote) return;
-    updateEvent(event.id, {
-      notes: [
-        ...(event.notes ?? []),
-        { id: crypto.randomUUID(), text: pendingNote.text, sourceNoteId: pendingNote.id },
-      ],
-    });
-    setPendingNoteId(null);
-  }
-
   function handleAddNoteLine(event: ScheduleEvent, text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -273,7 +135,6 @@ export default function Home() {
   function handleEditNoteLine(event: ScheduleEvent, lineId: string, text: string) {
     const trimmed = text.trim();
     const existing = event.notes ?? [];
-    const target = existing.find((note) => note.id === lineId);
 
     if (!trimmed) {
       updateEvent(event.id, { notes: existing.filter((note) => note.id !== lineId) });
@@ -283,21 +144,6 @@ export default function Home() {
     updateEvent(event.id, {
       notes: existing.map((note) => (note.id === lineId ? { ...note, text: trimmed } : note)),
     });
-
-    // Keep every other copy of this note (the source Note, and any other
-    // event it's attached to) in sync with the edit.
-    if (target?.sourceNoteId) {
-      updateNote(target.sourceNoteId, { text: trimmed });
-      for (const other of events) {
-        if (other.id === event.id) continue;
-        if (!other.notes?.some((note) => note.sourceNoteId === target.sourceNoteId)) continue;
-        updateEvent(other.id, {
-          notes: other.notes.map((note) =>
-            note.sourceNoteId === target.sourceNoteId ? { ...note, text: trimmed } : note
-          ),
-        });
-      }
-    }
   }
 
   function handleRemoveNoteLine(eventId: string, lineId: string) {
@@ -314,30 +160,6 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-6 py-6">
-      {pendingNote && (
-        <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-center gap-3 border-b border-black/[.08] bg-background/95 px-4 py-2 text-center text-sm backdrop-blur dark:border-white/[.145]">
-          <span>
-            📝 Placing note: <strong>{truncateForTitle(pendingNote.text, 60)}</strong> — click a
-            time slot or an event on Today
-          </span>
-          <button
-            type="button"
-            onClick={() => setPendingNoteId(null)}
-            className="shrink-0 text-zinc-500 underline transition-colors hover:text-foreground dark:text-zinc-400"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-      {pendingNote && cursorPos && (
-        <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-md bg-white px-3 py-2 text-xs shadow-[0_4px_20px_rgba(0,0,0,0.2)] dark:bg-[#1c1c1e]"
-          style={{ left: cursorPos.x + 14, top: cursorPos.y + 14 }}
-        >
-          📝 {truncateForTitle(pendingNote.text, 60)}
-        </div>
-      )}
-
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <div className="w-full sm:w-96">
@@ -406,26 +228,13 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <Link
-              href="/schedule"
-              className="text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
-            >
-              Full schedule →
-            </Link>
           </div>
         </div>
 
-        <div
-          onDragOver={handleTodayDragOver}
-          onDragLeave={() => setDragOverToday(false)}
-          onDrop={handleTodayDrop}
-          className={`mt-4 flex-1 overflow-y-auto rounded-lg transition-colors ${
-            dragOverToday ? "ring-2 ring-black/[.3] ring-offset-2 ring-offset-background dark:ring-white/[.4]" : ""
-          }`}
-        >
+        <div className="mt-4 flex-1 overflow-y-auto rounded-lg">
           {!eventsLoaded ? (
             <SkeletonLine className="h-full min-h-[24rem] w-full" />
-          ) : viewMode === "week" && !pendingNote ? (
+          ) : viewMode === "week" ? (
             <WeekCalendar
               selectedDate={selectedDate}
               events={events}
@@ -439,35 +248,25 @@ export default function Home() {
             />
           ) : visibleEvents.length === 0 ? (
             <p
-              onClick={() => pendingNote && handlePlaceAllDay()}
-              className={`flex h-32 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400 ${
-                pendingNote ? "cursor-crosshair" : ""
-              }`}
+              data-drop-zone="allday"
+              data-drop-date={selectedDate}
+              className="flex h-32 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400"
             >
-              {dragOverToday
-                ? "Drop to schedule for this day"
-                : pendingNote
-                  ? "Click here to attach the note (all day)"
-                  : "Nothing planned for this day."}
+              Nothing planned for this day.
             </p>
           ) : (
             <DayCalendar
+              date={selectedDate}
               events={visibleEvents}
               onUpdateEvent={updateEvent}
               onEditEvent={setEditingEvent}
-              onDropExternal={handleDropOnTimeSlot}
               isEventDone={isEventDone}
               onToggleDone={handleToggleDone}
               onDeleteEvent={(event) => removeEvent(event.id)}
-              placementActive={Boolean(pendingNote)}
-              onPlaceAtTime={handlePlaceAtTime}
-              onPlaceAllDay={handlePlaceAllDay}
-              onPlaceOnEvent={handlePlaceOnEvent}
               onAddNoteLine={handleAddNoteLine}
               onEditNoteLine={handleEditNoteLine}
               onRemoveNoteLine={(event, lineId) => handleRemoveNoteLine(event.id, lineId)}
               onMergeNoteEvent={handleMergeNoteEvent}
-              onDropNoteOnEvent={handleDropNoteOnEvent}
               categoryColors={categoryColors}
             />
           )}
@@ -479,7 +278,7 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Todos</h2>
           <Link
-            href="/todos"
+            href="/other"
             className="text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
           >
             All todos →
@@ -496,11 +295,8 @@ export default function Home() {
               {openTodos.map((todo) => (
                 <li
                   key={todo.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(TODO_DRAG_TYPE, todo.id);
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
+                  onPointerDown={(e) => startTodoDrag(todo, e)}
+                  style={{ touchAction: "none" }}
                   className="group flex cursor-grab items-center gap-3 rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
                   <input
@@ -551,71 +347,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Notes</h2>
-          <Link
-            href="/other"
-            className="text-sm text-zinc-500 transition-colors hover:text-foreground dark:text-zinc-400"
-          >
-            Manage notes →
-          </Link>
-        </div>
-
-        <div className="mt-4">
-          {!notesLoaded ? (
-            <ListSkeleton rows={3} />
-          ) : notes.length === 0 ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No notes yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {notes.slice(0, 6).map((note) => (
-                <li
-                  key={note.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(NOTE_DRAG_TYPE, note.id);
-                    e.dataTransfer.effectAllowed = "copy";
-                  }}
-                  className="group cursor-grab rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditingNote(note)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          {note.pinned && (
-                            <span className="text-amber-500" aria-label="Pinned">
-                              ★
-                            </span>
-                          )}
-                          <CategoryBadge category={note.tag} />
-                        </div>
-                        <span className="text-[11px] text-zinc-400">
-                          {formatNoteTimestamp(note.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm">{note.text}</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => scheduleNoteForSelectedDate(note)}
-                      aria-label={`Schedule this note for ${formatEventDate(selectedDate)}`}
-                      title={`Schedule for ${formatEventDate(selectedDate)}`}
-                      className="mt-0.5 shrink-0 rounded px-1 text-zinc-400 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 dark:hover:text-white [@media(hover:none)]:opacity-100"
-                    >
-                      +
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
       </div>
       </div>
 
@@ -633,14 +364,6 @@ export default function Home() {
           onSave={(id, changes) => updateTodo(id, changes)}
           onDelete={removeTodo}
           onClose={() => setEditingTodo(null)}
-        />
-      )}
-      {editingNote && (
-        <NoteEditModal
-          note={editingNote}
-          onSave={(id, changes) => updateNote(id, changes)}
-          onDelete={removeNote}
-          onClose={() => setEditingNote(null)}
         />
       )}
     </main>

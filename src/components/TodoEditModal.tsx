@@ -19,6 +19,7 @@ type Props = {
 export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props) {
   const { labelFor } = useCategoryLabels();
   const [title, setTitle] = useState(todo.title);
+  const [description, setDescription] = useState(todo.description ?? "");
   const [dueDate, setDueDate] = useState(todo.dueDate ?? "");
   const [done, setDone] = useState(todo.done);
   const [category, setCategory] = useState(todo.category ?? "");
@@ -38,6 +39,7 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
     if (!title.trim()) return;
     onSave(todo.id, {
       title: title.trim(),
+      description: description.trim() || undefined,
       dueDate: dueDate || undefined,
       done,
       category: isCategory(category) ? category : undefined,
@@ -60,6 +62,18 @@ export default function TodoEditModal({ todo, onSave, onDelete, onClose }: Props
             className={fieldClass}
           />
         </label>
+
+        <label className="flex flex-col gap-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Notes
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Add a note…"
+            className={`${fieldClass} resize-none`}
+          />
+        </label>
+
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1 text-sm text-zinc-500 dark:text-zinc-400">
             Due date

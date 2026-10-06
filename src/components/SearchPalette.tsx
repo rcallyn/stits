@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTodos } from "@/hooks/useTodos";
-import { useNotes } from "@/hooks/useNotes";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
-import { formatEventDate, truncateForTitle } from "@/lib/schedule";
+import { formatEventDate } from "@/lib/schedule";
 
 type Result = {
-  kind: "todo" | "note" | "event";
+  kind: "todo" | "event";
   id: string;
   title: string;
   sub?: string;
@@ -27,7 +26,6 @@ export default function SearchPalette() {
   const [query, setQuery] = useState("");
   const [wasOpen, setWasOpen] = useState(isOpen);
   const { todos } = useTodos();
-  const { notes } = useNotes();
   const { events } = useScheduleEvents();
   const { setJumpToDate } = useJumpToDate();
   const router = useRouter();
@@ -75,19 +73,13 @@ export default function SearchPalette() {
       .filter((e) => e.title.toLowerCase().includes(q))
       .slice(0, 6)
       .map((e) => ({ kind: "event", id: e.id, title: e.title, sub: formatEventDate(e.date), date: e.date }));
-    const noteResults: Result[] = notes
-      .filter((n) => n.text.toLowerCase().includes(q))
-      .slice(0, 6)
-      .map((n) => ({ kind: "note", id: n.id, title: truncateForTitle(n.text, 70) }));
 
-    return [...todoResults, ...eventResults, ...noteResults];
-  }, [query, todos, notes, events]);
+    return [...todoResults, ...eventResults];
+  }, [query, todos, events]);
 
   function handleSelect(result: Result) {
     setOpen(false);
     if (result.kind === "todo") {
-      router.push("/todos");
-    } else if (result.kind === "note") {
       router.push("/other");
     } else if (result.date) {
       setJumpToDate(result.date);
@@ -113,7 +105,7 @@ export default function SearchPalette() {
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search todos, notes, and events…"
+          placeholder="Search todos and events…"
           className="w-full border-b border-black/[.08] bg-transparent px-4 py-3 text-sm outline-none dark:border-white/[.145]"
         />
         {query.trim() && (

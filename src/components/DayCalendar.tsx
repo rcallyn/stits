@@ -13,8 +13,8 @@ import {
   timeToMinutes,
 } from "@/lib/schedule";
 import { Category } from "@/lib/categories";
+import { useHoveredDropZone } from "@/hooks/useTodoDrag";
 import { ColorStyle, resolveColor } from "@/lib/itemColor";
-import { NOTE_DRAG_TYPE } from "@/lib/dnd";
 
 const MOVE_THRESHOLD = 4; // px, below this a pointer down/up counts as a click
 
@@ -35,10 +35,10 @@ const GUTTER_WIDTH = 44; // px
 const SNAP_MINUTES = 15;
 
 type Props = {
+  date: string;
   events: ScheduleEvent[];
   onUpdateEvent?: (id: string, changes: { time: string; endTime: string }) => void;
   onEditEvent?: (event: ScheduleEvent) => void;
-  onDropExternal?: (dataTransfer: DataTransfer, time: string) => void;
   isEventDone?: (event: ScheduleEvent) => boolean;
   onToggleDone?: (event: ScheduleEvent) => void;
   onDeleteEvent?: (event: ScheduleEvent) => void;
@@ -50,7 +50,6 @@ type Props = {
   onEditNoteLine?: (event: ScheduleEvent, lineId: string, text: string) => void;
   onRemoveNoteLine?: (event: ScheduleEvent, lineId: string) => void;
   onMergeNoteEvent?: (source: ScheduleEvent, target: ScheduleEvent) => void;
-  onDropNoteOnEvent?: (event: ScheduleEvent, noteId: string) => void;
   categoryColors?: Partial<Record<Category, string>>;
 };
 
@@ -79,10 +78,10 @@ type DragState = {
 };
 
 export default function DayCalendar({
+  date,
   events,
   onUpdateEvent,
   onEditEvent,
-  onDropExternal,
   isEventDone,
   onToggleDone,
   onDeleteEvent,
@@ -94,7 +93,6 @@ export default function DayCalendar({
   onEditNoteLine,
   onRemoveNoteLine,
   onMergeNoteEvent,
-  onDropNoteOnEvent,
   categoryColors,
 }: Props) {
   const timed = events.filter((e) => e.time);
@@ -115,6 +113,11 @@ export default function DayCalendar({
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const totalHeight = hours.length * HOUR_HEIGHT;
   const positioned = layoutDayEvents(timed);
+
+  const hoveredZone = useHoveredDropZone();
+  const externalPreviewMinutes =
+    hoveredZone?.kind === "timed" && hoveredZone.date === date ? hoveredZone.minutes : null;
+  const externalAllDayHighlight = hoveredZone?.kind === "allday" && hoveredZone.date === date;
 
   const [draft, setDraft] = useState<Record<string, { time: string; endTime: string }>>({});
   const [dropPreviewMinutes, setDropPreviewMinutes] = useState<number | null>(null);
@@ -402,25 +405,6 @@ export default function DayCalendar({
     return minutesFromClientY(clientY, top, rangeStartMinutes, rangeEndMinutes);
   }
 
-  function handleGridDragOver(e: React.DragEvent) {
-    if (!onDropExternal) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDropPreviewMinutes(minutesFromPointerY(e.clientY, rect.top));
-  }
-
-  function handleGridDrop(e: React.DragEvent) {
-    if (!onDropExternal) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const minutes = minutesFromPointerY(e.clientY, rect.top);
-    setDropPreviewMinutes(null);
-    onDropExternal(e.dataTransfer, minutesToTime(minutes));
-  }
-
   function handleGridClick(e: React.MouseEvent) {
     if (!placementActive || !onPlaceAtTime) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -435,11 +419,13 @@ export default function DayCalendar({
     <div className="flex flex-col gap-3">
       {showAllDayRow && (
         <div
+          data-drop-zone="allday"
+          data-drop-date={date}
           onClick={() => placing && onPlaceAllDay?.()}
           className={`flex min-h-9 flex-wrap items-center gap-2 rounded-md border border-dashed px-2 py-1.5 transition-colors ${
             placing ? "cursor-crosshair" : ""
           } ${
-            allDayHighlight
+            allDayHighlight || externalAllDayHighlight
               ? "border-black/[.3] bg-black/[.03] dark:border-white/[.4] dark:bg-white/[.05]"
               : "border-transparent"
           }`}
@@ -462,21 +448,6 @@ export default function DayCalendar({
                     if (!placing) return;
                     e.stopPropagation();
                     onPlaceOnEvent?.(event);
-                  }}
-                  onDragOver={(e) => {
-                    if (kind === "todo" || !onDropNoteOnEvent || !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
-                      return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.dataTransfer.dropEffect = "copy";
-                  }}
-                  onDrop={(e) => {
-                    if (kind === "todo" || !onDropNoteOnEvent) return;
-                    const noteId = e.dataTransfer.getData(NOTE_DRAG_TYPE);
-                    if (!noteId) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDropNoteOnEvent(event, noteId);
                   }}
                   style={{ touchAction: draggable ? "none" : undefined }}
                   className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium select-none ${blockClassFor(
@@ -524,13 +495,14 @@ export default function DayCalendar({
 
         <div
           ref={gridRef}
+          data-drop-zone="timed"
+          data-drop-date={date}
+          data-drop-start={rangeStartMinutes}
+          data-drop-end={rangeEndMinutes}
           className={`relative flex-1 border-l border-black/[.08] dark:border-white/[.145] ${
             placing ? "cursor-crosshair" : ""
           }`}
           style={{ height: totalHeight }}
-          onDragOver={handleGridDragOver}
-          onDragLeave={() => setDropPreviewMinutes(null)}
-          onDrop={handleGridDrop}
           onClick={handleGridClick}
         >
           {hours.map((hour) => (
@@ -541,14 +513,18 @@ export default function DayCalendar({
             />
           ))}
 
-          {dropPreviewMinutes !== null && (
+          {(dropPreviewMinutes ?? externalPreviewMinutes) !== null && (
             <div
               className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
-              style={{ top: (dropPreviewMinutes - rangeStartMinutes) * PX_PER_MINUTE }}
+              style={{
+                top:
+                  ((dropPreviewMinutes ?? externalPreviewMinutes)! - rangeStartMinutes) *
+                  PX_PER_MINUTE,
+              }}
             >
               <div className="h-0.5 flex-1 bg-[#0071e3]" />
               <span className="ml-1 shrink-0 rounded bg-[#0071e3] px-1 text-[10px] font-medium text-white">
-                {formatEventTime(minutesToTime(dropPreviewMinutes))}
+                {formatEventTime(minutesToTime((dropPreviewMinutes ?? externalPreviewMinutes)!))}
               </span>
             </div>
           )}
@@ -601,21 +577,6 @@ export default function DayCalendar({
                   if (!placing) return;
                   e.stopPropagation();
                   onPlaceOnEvent?.(event);
-                }}
-                onDragOver={(e) => {
-                  if (kind === "todo" || !onDropNoteOnEvent || !e.dataTransfer.types.includes(NOTE_DRAG_TYPE))
-                    return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.dataTransfer.dropEffect = "copy";
-                }}
-                onDrop={(e) => {
-                  if (kind === "todo" || !onDropNoteOnEvent) return;
-                  const noteId = e.dataTransfer.getData(NOTE_DRAG_TYPE);
-                  if (!noteId) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDropNoteOnEvent(event, noteId);
                 }}
               >
                 <div className="flex items-center gap-1">

@@ -1,4 +1,4 @@
-export type Category = "rush" | "career" | "school" | "house" | "other";
+export type Category = "rush" | "career" | "school" | "house" | "other" | "lloyd";
 
 export type CategoryMeta = {
   label: string;
@@ -10,6 +10,7 @@ export const CATEGORIES: Record<Category, CategoryMeta> = {
   school: { label: "School" },
   house: { label: "House Management" },
   other: { label: "Other" },
+  lloyd: { label: "Lloyd" },
 };
 
 export const CATEGORY_LIST = Object.entries(CATEGORIES) as [Category, CategoryMeta][];

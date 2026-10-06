@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Category } from "@/lib/categories";
+import { useHoveredDropZone } from "@/hooks/useTodoDrag";
 import { resolveColor } from "@/lib/itemColor";
 import { weekDates } from "@/lib/monthGrid";
 import {
@@ -10,6 +11,7 @@ import {
   formatEventTime,
   isEventOnDate,
   layoutDayEvents,
+  minutesToTime,
   scheduleEventKind,
   ScheduleEvent,
   timeToMinutes,
@@ -66,6 +68,7 @@ export default function WeekCalendar({
   const showNowLine = nowMinutes >= rangeStartMinutes && nowMinutes <= rangeEndMinutes;
 
   const hasAllDay = expanded.some((e) => !e.time);
+  const hoveredZone = useHoveredDropZone();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -111,8 +114,14 @@ export default function WeekCalendar({
               key={date}
               type="button"
               data-date={date}
+              data-drop-zone="allday"
+              data-drop-date={date}
               onClick={() => onSelectDay(date)}
-              className="flex min-w-[100px] flex-1 flex-col items-center gap-1 py-2 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05]"
+              className={`flex min-w-[100px] flex-1 flex-col items-center gap-1 py-2 transition-colors hover:bg-black/[.03] dark:hover:bg-white/[.05] ${
+                hoveredZone?.kind === "allday" && hoveredZone.date === date
+                  ? "bg-[#0071e3]/10 ring-2 ring-inset ring-[#0071e3]"
+                  : ""
+              }`}
             >
               <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
                 {weekday}
@@ -190,12 +199,32 @@ export default function WeekCalendar({
           const positioned = layoutDayEvents(dayEvents);
           const isToday = date === today;
 
+          const isHoveredTimed = hoveredZone?.kind === "timed" && hoveredZone.date === date;
+
           return (
             <div
               key={date}
-              className="relative min-w-[100px] flex-1 border-l border-black/[.08] dark:border-white/[.145]"
+              data-drop-zone="timed"
+              data-drop-date={date}
+              data-drop-start={rangeStartMinutes}
+              data-drop-end={rangeEndMinutes}
+              className={`relative min-w-[100px] flex-1 border-l border-black/[.08] dark:border-white/[.145] ${
+                isHoveredTimed ? "bg-[#0071e3]/5" : ""
+              }`}
               style={{ height: totalHeight }}
             >
+              {isHoveredTimed && (
+                <div
+                  className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
+                  style={{ top: (hoveredZone.minutes - rangeStartMinutes) * PX_PER_MINUTE }}
+                >
+                  <div className="h-0.5 flex-1 bg-[#0071e3]" />
+                  <span className="ml-1 shrink-0 rounded bg-[#0071e3] px-1 text-[10px] font-medium text-white">
+                    {formatEventTime(minutesToTime(hoveredZone.minutes))}
+                  </span>
+                </div>
+              )}
+
               {hours.map((hour) => (
                 <div
                   key={hour}

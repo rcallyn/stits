@@ -18,6 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const fields: Record<string, unknown> = {};
   if ("title" in changes) fields.title = changes.title;
+  if ("description" in changes) fields.description = changes.description ?? null;
   if ("done" in changes) fields.done = changes.done;
   if ("dueDate" in changes) fields.due_date = changes.dueDate ?? null;
   if ("category" in changes) fields.category = changes.category ?? null;

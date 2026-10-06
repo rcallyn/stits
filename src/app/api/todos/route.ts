@@ -7,6 +7,7 @@ import { todoCreateSchema } from "@/lib/schemas";
 type TodoRow = {
   id: string;
   title: string;
+  description: string | null;
   done: boolean;
   due_date: string | null;
   category: string | null;
@@ -20,6 +21,7 @@ function rowToTodo(row: TodoRow): Todo {
   return {
     id: row.id,
     title: row.title,
+    description: row.description ?? undefined,
     done: row.done,
     dueDate: row.due_date ?? undefined,
     category: (row.category as Todo["category"]) ?? undefined,
@@ -38,12 +40,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, todoCreateSchema);
   if (!parsed.ok) return parsed.response;
-  const { title, dueDate, category, priority, subtasks, canvasId } = parsed.data;
+  const { title, description, dueDate, category, priority, subtasks, canvasId } = parsed.data;
 
   const [row] = await sql<TodoRow[]>`
-    insert into todos (title, due_date, category, priority, subtasks, canvas_id)
+    insert into todos (title, description, due_date, category, priority, subtasks, canvas_id)
     values (
       ${title},
+      ${description ?? null},
       ${dueDate ?? null},
       ${category ?? null},
       ${priority ?? null},

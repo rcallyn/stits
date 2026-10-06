@@ -12,6 +12,7 @@ export type Subtask = {
 export type Todo = {
   id: string;
   title: string;
+  description?: string;
   dueDate?: string; // YYYY-MM-DD
   done: boolean;
   category?: Category; // undefined = general todo, otherwise from the Other tab

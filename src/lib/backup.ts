@@ -1,6 +1,5 @@
 import { Todo } from "@/lib/todos";
 import { ScheduleEvent } from "@/lib/schedule";
-import { Note } from "@/lib/notes";
 import { REPLACE_CONFIRMATION } from "@/lib/schemas";
 
 export type BackupData = {
@@ -8,7 +7,6 @@ export type BackupData = {
   exportedAt: string;
   todos: Todo[];
   scheduleEvents: ScheduleEvent[];
-  notes: Note[];
   categoryColors: Record<string, string>;
   categoryLabels: Record<string, string>;
   categoryOrder: string[];
@@ -34,7 +32,6 @@ export function buildLocalStorageBackup(): BackupData {
     exportedAt: new Date().toISOString(),
     todos: readJSON("stits:todos", []),
     scheduleEvents: readJSON("stits:schedule-events", []),
-    notes: readJSON("stits:notes", []),
     categoryColors: readJSON("stits:category-colors", {}),
     categoryLabels: readJSON("stits:category-labels", {}),
     categoryOrder: readJSON("stits:category-order", []),
@@ -42,16 +39,14 @@ export function buildLocalStorageBackup(): BackupData {
 }
 
 export async function buildServerBackup(): Promise<BackupData> {
-  const [todosRes, eventsRes, notesRes, settingsRes] = await Promise.all([
+  const [todosRes, eventsRes, settingsRes] = await Promise.all([
     fetch("/api/todos"),
     fetch("/api/events"),
-    fetch("/api/notes"),
     fetch("/api/settings"),
   ]);
-  const [todosData, eventsData, notesData, settings] = await Promise.all([
+  const [todosData, eventsData, settings] = await Promise.all([
     todosRes.json(),
     eventsRes.json(),
-    notesRes.json(),
     settingsRes.json(),
   ]);
   return {
@@ -59,7 +54,6 @@ export async function buildServerBackup(): Promise<BackupData> {
     exportedAt: new Date().toISOString(),
     todos: todosData.todos ?? [],
     scheduleEvents: eventsData.events ?? [],
-    notes: notesData.notes ?? [],
     categoryColors: settings.categoryColors ?? {},
     categoryLabels: settings.categoryLabels ?? {},
     categoryOrder: settings.categoryOrder ?? [],
@@ -80,12 +74,12 @@ export async function downloadBackup() {
 export function isBackupData(value: unknown): value is BackupData {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
-  return Array.isArray(v.todos) && Array.isArray(v.scheduleEvents) && Array.isArray(v.notes);
+  return Array.isArray(v.todos) && Array.isArray(v.scheduleEvents);
 }
 
 // Replaces all server-backed data with the contents of a backup file —
 // matches what this button has always told the user it does ("will replace
-// all current todos, events, and notes"). The `confirm` string is required by
+// all current todos and events"). The `confirm` string is required by
 // /api/migrate for any destructive (replace) import.
 export async function applyBackup(data: BackupData) {
   const res = await fetch("/api/migrate", {

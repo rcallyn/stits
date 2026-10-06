@@ -30,6 +30,7 @@ export const todoPrioritySchema = z.enum(["high", "medium", "low"]);
 
 export const todoCreateSchema = z.object({
   title,
+  description: z.string().max(10_000).optional(),
   dueDate: dateSchema.optional(),
   category: categorySchema.optional(),
   priority: todoPrioritySchema.optional(),
@@ -40,27 +41,13 @@ export const todoCreateSchema = z.object({
 export const todoPatchSchema = z
   .object({
     title,
+    description: z.string().max(10_000).nullable(),
     done: z.boolean(),
     dueDate: dateSchema.nullable(),
     category: categorySchema.nullable(),
     priority: todoPrioritySchema.nullable(),
     subtasks: z.array(subtaskSchema).nullable(),
     completedAt: z.iso.datetime().nullable(),
-  })
-  .partial();
-
-/* ------------------------------- notes ---------------------------------- */
-
-export const noteCreateSchema = z.object({
-  text: z.string().trim().min(1).max(10_000),
-  tag: categorySchema,
-});
-
-export const notePatchSchema = z
-  .object({
-    text: z.string().trim().min(1).max(10_000),
-    tag: categorySchema,
-    pinned: z.boolean().nullable(),
   })
   .partial();
 
@@ -151,12 +138,6 @@ const backupEventSchema = eventCreateSchema.extend({
   id: z.uuid(),
 });
 
-const backupNoteSchema = noteCreateSchema.extend({
-  id: z.uuid(),
-  createdAt: z.iso.datetime(),
-  pinned: z.boolean().nullish(),
-});
-
 export const REPLACE_CONFIRMATION = "REPLACE ALL DATA";
 
 export const backupImportSchema = z.object({
@@ -164,7 +145,6 @@ export const backupImportSchema = z.object({
   exportedAt: z.string().max(100).optional(),
   todos: z.array(backupTodoSchema).max(20_000),
   scheduleEvents: z.array(backupEventSchema).max(20_000),
-  notes: z.array(backupNoteSchema).max(20_000),
   categoryColors: categoryStringRecord.optional(),
   categoryLabels: categoryStringRecord.optional(),
   categoryOrder: z.array(categorySchema).optional(),

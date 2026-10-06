@@ -9,8 +9,6 @@ import TabBarIcon, { TabIconName } from "@/components/TabBarIcon";
 const links: { href: string; label: string; icon: TabIconName }[] = [
   { href: "/", label: "Dashboard", icon: "home" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/schedule", label: "Schedule", icon: "clock" },
-  { href: "/todos", label: "Todos", icon: "check-circle" },
   { href: "/other", label: "Other", icon: "folder" },
 ];
 

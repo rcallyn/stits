@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { CSSProperties, PointerEvent as ReactPointerEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import {
@@ -19,6 +19,7 @@ import { useTodos } from "@/hooks/useTodos";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { DropZone, startTodoDrag, useTodoDropHandler } from "@/hooks/useTodoDrag";
+import { useSidebarWidth } from "@/hooks/useSidebarWidth";
 import QuickAdd from "@/components/QuickAdd";
 import EventEditModal from "@/components/EventEditModal";
 import TodoEditModal from "@/components/TodoEditModal";
@@ -55,6 +56,28 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(todayISODate());
   const [lastAppliedJump, setLastAppliedJump] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"day" | "week">("week");
+  const { sidebarWidth, setSidebarWidth } = useSidebarWidth();
+
+  // Dragging the divider resizes the sidebar; the calendar section is
+  // flex-1, so it grows/shrinks to fill whatever space that leaves.
+  const handleSidebarResizeStart = useCallback(
+    (e: ReactPointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = sidebarWidth;
+
+      function handleMove(ev: PointerEvent) {
+        setSidebarWidth(startWidth - (ev.clientX - startX));
+      }
+      function handleUp() {
+        window.removeEventListener("pointermove", handleMove);
+        window.removeEventListener("pointerup", handleUp);
+      }
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", handleUp);
+    },
+    [sidebarWidth, setSidebarWidth]
+  );
 
   if (jumpToDate && jumpToDate !== lastAppliedJump) {
     setLastAppliedJump(jumpToDate);
@@ -273,7 +296,20 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="flex w-full flex-col gap-6 overflow-y-auto lg:w-72 lg:shrink-0">
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        onPointerDown={handleSidebarResizeStart}
+        className="group hidden w-2 shrink-0 cursor-col-resize items-stretch justify-center lg:flex"
+      >
+        <span className="w-px rounded-full bg-black/[.08] transition-colors group-hover:bg-black/[.2] dark:bg-white/[.1] dark:group-hover:bg-white/[.25]" />
+      </div>
+
+      <div
+        className="flex w-full flex-col gap-6 overflow-y-auto lg:w-[var(--sidebar-w)] lg:shrink-0"
+        style={{ "--sidebar-w": `${sidebarWidth}px` } as CSSProperties}
+      >
       <section className="rounded-xl bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Todos</h2>
@@ -297,49 +333,53 @@ export default function Home() {
                   key={todo.id}
                   onPointerDown={(e) => startTodoDrag(todo, e)}
                   style={{ touchAction: "none" }}
-                  className="group flex cursor-grab items-center gap-3 rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
+                  className="group flex cursor-grab flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-black/[.02] active:cursor-grabbing dark:hover:bg-white/[.03]"
                 >
-                  <input
-                    type="checkbox"
-                    checked={todo.done}
-                    onChange={() => toggleTodo(todo.id)}
-                    className="h-4 w-4 shrink-0"
-                  />
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      resolveColor(todo.id, todo.category, categoryColors).dot
-                    }`}
-                  />
-                  {todo.priority && (
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_META[todo.priority].dot}`}
-                      aria-label={`${PRIORITY_META[todo.priority].label} priority`}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={todo.done}
+                      onChange={() => toggleTodo(todo.id)}
+                      className="h-4 w-4 shrink-0"
                     />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setEditingTodo(todo)}
-                    className={`flex-1 truncate text-left text-sm font-medium ${
-                      isOverdue(todo) ? "text-red-500" : ""
-                    }`}
-                  >
-                    {todo.title}
-                    {subtaskProgress(todo).total > 0 && (
-                      <span className="ml-1 text-xs font-normal text-zinc-400">
-                        {subtaskProgress(todo).done}/{subtaskProgress(todo).total}
-                      </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingTodo(todo)}
+                      className={`flex-1 truncate text-left text-sm font-medium ${
+                        isOverdue(todo) ? "text-red-500" : ""
+                      }`}
+                    >
+                      {todo.title}
+                      {subtaskProgress(todo).total > 0 && (
+                        <span className="ml-1 text-xs font-normal text-zinc-400">
+                          {subtaskProgress(todo).done}/{subtaskProgress(todo).total}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scheduleTodoForSelectedDate(todo)}
+                      aria-label={`Schedule ${todo.title} for ${formatEventDate(selectedDate)}`}
+                      title={`Schedule for ${formatEventDate(selectedDate)}`}
+                      className="shrink-0 rounded px-1 text-zinc-400 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 dark:hover:text-white [@media(hover:none)]:opacity-100"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 pl-7">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        resolveColor(todo.id, todo.category, categoryColors).dot
+                      }`}
+                    />
+                    {todo.priority && (
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_META[todo.priority].dot}`}
+                        aria-label={`${PRIORITY_META[todo.priority].label} priority`}
+                      />
                     )}
-                  </button>
-                  {todo.category && <CategoryBadge category={todo.category} />}
-                  <button
-                    type="button"
-                    onClick={() => scheduleTodoForSelectedDate(todo)}
-                    aria-label={`Schedule ${todo.title} for ${formatEventDate(selectedDate)}`}
-                    title={`Schedule for ${formatEventDate(selectedDate)}`}
-                    className="shrink-0 rounded px-1 text-zinc-400 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 dark:hover:text-white [@media(hover:none)]:opacity-100"
-                  >
-                    +
-                  </button>
+                    {todo.category && <CategoryBadge category={todo.category} />}
+                  </div>
                 </li>
               ))}
             </ul>

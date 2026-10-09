@@ -1,11 +1,11 @@
 # stits
 
-This is my personal productivity app — a calendar and a todo list on one
-dashboard, built so adding something to my day takes about two seconds and
+This is my personal productivity app: a calendar and a todo list on one
+dashboard, built so adding something to my day takes a few seconds and
 glancing at it tells me everything I need to know.
 
-I designed and directed the project; every line of code was actually written
-by [Claude](https://claude.com/claude-code), Anthropic's AI coding assistant.
+I designed and directed the project; every line of code was written
+by Claude, Anthropic's AI coding assistant.
 
 ![Dashboard — week view with todos, sample data](docs/dashboard-demo.png)
 <sub>Sample data shown above — not my real todos or schedule.</sub>

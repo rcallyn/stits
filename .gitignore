@@ -8,6 +8,10 @@ dist
 *.tsbuildinfo
 .vercel
 
+# Claude Code local settings — machine/session-specific permission
+# allowlists, not meant to be shared or versioned.
+.claude/settings.local.json
+
 # Env files — ignore everything except the checked-in example.
 .env
 .env.local

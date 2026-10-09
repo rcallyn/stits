@@ -13,12 +13,12 @@ by Claude, Anthropic's AI coding assistant.
 ## What it does
 
 - **Calendar and todos live side by side**, so I'm not jumping between pages
-  to see what's happening today versus what I still owe myself.
+  to see what's happening today versus what I still need to do.
 - **Drag a todo straight onto the calendar to schedule it** — works with a
   mouse or a finger. Drop it on a day and it just sits there with no time
   attached; drop it on a time slot and it becomes a 15-minute event right
   then.
-- **Quick-add in plain English.** I can type something like "dentist
+- **Quick-add**, I can type something like "dentist
   appointment tomorrow at 3pm" and it figures out the date and time itself —
   no date picker needed.
 - **Todos can carry notes, subtasks, a priority, and a color-coded category**,

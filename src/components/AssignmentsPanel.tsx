@@ -1,13 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { formatEventDate, shiftISODate, todayISODate } from "@/lib/schedule";
-import { isOverdue, Todo } from "@/lib/todos";
+import { isOverdue, splitDueLater, Todo } from "@/lib/todos";
 import { startTodoDrag } from "@/hooks/useTodoDrag";
 import { ListSkeleton } from "@/components/Skeleton";
+import DueLaterToggle from "@/components/DueLaterToggle";
 
 // Canvas-synced assignments, kept out of the Todos list. Shows what's overdue
-// or due in the next two weeks; anything further out is just counted.
-const UPCOMING_DAYS = 14;
+// or due within a week; the rest sit behind a "+N due later" button.
 
 type Props = {
   assignments: Todo[];
@@ -23,13 +24,13 @@ function dueLabel(dueDate: string, today: string): string {
 }
 
 export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit }: Props) {
+  const [showLater, setShowLater] = useState(false);
   const today = todayISODate();
-  const horizon = shiftISODate(today, UPCOMING_DAYS);
   const open = assignments
     .filter((todo) => !todo.done)
     .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
-  const shown = open.filter((todo) => !todo.dueDate || todo.dueDate <= horizon);
-  const laterCount = open.length - shown.length;
+  const { soon, later } = splitDueLater(open, today);
+  const shown = showLater ? [...soon, ...later] : soon;
 
   return (
     <section className="flex min-h-0 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:w-72 lg:shrink-0">
@@ -40,7 +41,7 @@ export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit
           <ListSkeleton rows={4} />
         ) : shown.length === 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {laterCount > 0 ? "Nothing due in the next two weeks." : "No assignments due."}
+            {later.length > 0 ? "Nothing due this week." : "No assignments due."}
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
@@ -79,8 +80,12 @@ export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit
             ))}
           </ul>
         )}
-        {loaded && laterCount > 0 && (
-          <p className="mt-3 px-2 text-xs text-zinc-400">+{laterCount} due later</p>
+        {loaded && (
+          <DueLaterToggle
+            count={later.length}
+            expanded={showLater}
+            onToggle={() => setShowLater((v) => !v)}
+          />
         )}
       </div>
     </section>

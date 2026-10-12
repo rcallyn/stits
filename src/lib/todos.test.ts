@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isOverdue, sortTodos, subtaskProgress, Todo } from "@/lib/todos";
+import { isOverdue, sortTodos, splitDueLater, subtaskProgress, Todo } from "@/lib/todos";
 
 function todo(partial: Partial<Todo> & { id: string }): Todo {
   return { title: "t", done: false, ...partial };
@@ -57,5 +57,21 @@ describe("sortTodos", () => {
     const input = [todo({ id: "b", done: true }), todo({ id: "a" })];
     sortTodos(input);
     expect(input.map((t) => t.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("splitDueLater", () => {
+  it("keeps undated, overdue, and next-6-days items; defers a week out and beyond", () => {
+    const items = [
+      { id: "none" },
+      { id: "overdue", dueDate: "2026-10-01" },
+      { id: "today", dueDate: "2026-10-12" },
+      { id: "six-days", dueDate: "2026-10-18" },
+      { id: "a-week", dueDate: "2026-10-19" },
+      { id: "later", dueDate: "2026-11-30" },
+    ];
+    const { soon, later } = splitDueLater(items, "2026-10-12");
+    expect(soon.map((t) => t.id)).toEqual(["none", "overdue", "today", "six-days"]);
+    expect(later.map((t) => t.id)).toEqual(["a-week", "later"]);
   });
 });

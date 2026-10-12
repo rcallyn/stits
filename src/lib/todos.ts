@@ -1,5 +1,5 @@
 import { Category } from "@/lib/categories";
-import { todayISODate } from "@/lib/schedule";
+import { shiftISODate, todayISODate } from "@/lib/schedule";
 
 export type TodoPriority = "high" | "medium" | "low";
 
@@ -35,6 +35,23 @@ const PRIORITY_RANK: Record<TodoPriority, number> = { high: 0, medium: 1, low: 2
 
 export function isOverdue(todo: Pick<Todo, "dueDate" | "done">): boolean {
   return Boolean(todo.dueDate) && !todo.done && todo.dueDate! < todayISODate();
+}
+
+// Lists show what's undated or due within the next week (overdue included);
+// anything further out sits behind a "+N due later" button.
+export const DUE_SOON_DAYS = 7;
+
+export function splitDueLater<T extends Pick<Todo, "dueDate">>(
+  todos: T[],
+  today: string = todayISODate()
+): { soon: T[]; later: T[] } {
+  const cutoff = shiftISODate(today, DUE_SOON_DAYS);
+  const soon: T[] = [];
+  const later: T[] = [];
+  for (const todo of todos) {
+    (todo.dueDate && todo.dueDate >= cutoff ? later : soon).push(todo);
+  }
+  return { soon, later };
 }
 
 export function subtaskProgress(todo: Pick<Todo, "subtasks">): { done: number; total: number } {

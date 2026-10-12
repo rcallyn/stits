@@ -5,7 +5,7 @@ import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { useCategoryLabels } from "@/hooks/useCategoryLabels";
 import { useCategoryOrder } from "@/hooks/useCategoryOrder";
-import { Todo } from "@/lib/todos";
+import { splitDueLater, Todo } from "@/lib/todos";
 import { Category, isCategory } from "@/lib/categories";
 import TodoEditModal from "@/components/TodoEditModal";
 import TodoMeta from "@/components/TodoMeta";
@@ -14,6 +14,7 @@ import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
 import { applyBackup, downloadBackup, importLocalStorageBackup, isBackupData } from "@/lib/backup";
 import CanvasSyncPanel from "@/components/CanvasSyncPanel";
+import DueLaterToggle from "@/components/DueLaterToggle";
 
 const fieldClass =
   "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
@@ -27,6 +28,17 @@ export default function OtherPage() {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<Category | null>(null);
   const [editingLabel, setEditingLabel] = useState<Category | null>(null);
+  // Categories whose "+N due later" items are currently expanded.
+  const [showLaterFor, setShowLaterFor] = useState<Set<Category>>(new Set());
+
+  function toggleShowLater(key: Category) {
+    setShowLaterFor((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   const importInputRef = useRef<HTMLInputElement>(null);
 
   function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
@@ -127,72 +139,73 @@ export default function OtherPage() {
         </div>
       </form>
 
-      {order.map((key) => (
-        <section
-          key={key}
-          draggable
-          onDragStart={(e: DragEvent) => {
-            e.dataTransfer.setData(CATEGORY_DRAG_TYPE, key);
-            e.dataTransfer.effectAllowed = "move";
-            setDraggingCategory(key);
-          }}
-          onDragEnd={() => setDraggingCategory(null)}
-          onDragOver={(e: DragEvent) => {
-            if (!e.dataTransfer.types.includes(CATEGORY_DRAG_TYPE)) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-          }}
-          onDrop={(e: DragEvent) => {
-            const draggedKey = e.dataTransfer.getData(CATEGORY_DRAG_TYPE);
-            if (!draggedKey || !isCategory(draggedKey)) return;
-            e.preventDefault();
-            moveCategory(draggedKey, key);
-          }}
-          className={`cursor-grab rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] transition-opacity active:cursor-grabbing dark:bg-[#1c1c1e] dark:shadow-none ${
-            draggingCategory === key ? "opacity-40" : ""
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <ColorSwatchPicker
-              value={categoryColors[key] ?? DEFAULT_CATEGORY_COLOR_KEY[key]}
-              onChange={(colorKey) => setCategoryColor(key, colorKey)}
-            />
-            {editingLabel === key ? (
-              <input
-                autoFocus
-                defaultValue={labelFor(key)}
-                onFocus={(e) => e.currentTarget.select()}
-                onBlur={(e) => {
-                  setCategoryLabel(key, e.target.value);
-                  setEditingLabel(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                  if (e.key === "Escape") setEditingLabel(null);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="rounded border border-black/[.2] bg-transparent px-1 text-sm font-semibold outline-none dark:border-white/[.3]"
+      {order.map((key) => {
+        const { soon, later } = splitDueLater(todos.filter((todo) => todo.category === key));
+        const shown = showLaterFor.has(key) ? [...soon, ...later] : soon;
+        return (
+          <section
+            key={key}
+            draggable
+            onDragStart={(e: DragEvent) => {
+              e.dataTransfer.setData(CATEGORY_DRAG_TYPE, key);
+              e.dataTransfer.effectAllowed = "move";
+              setDraggingCategory(key);
+            }}
+            onDragEnd={() => setDraggingCategory(null)}
+            onDragOver={(e: DragEvent) => {
+              if (!e.dataTransfer.types.includes(CATEGORY_DRAG_TYPE)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e: DragEvent) => {
+              const draggedKey = e.dataTransfer.getData(CATEGORY_DRAG_TYPE);
+              if (!draggedKey || !isCategory(draggedKey)) return;
+              e.preventDefault();
+              moveCategory(draggedKey, key);
+            }}
+            className={`cursor-grab rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] transition-opacity active:cursor-grabbing dark:bg-[#1c1c1e] dark:shadow-none ${
+              draggingCategory === key ? "opacity-40" : ""
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ColorSwatchPicker
+                value={categoryColors[key] ?? DEFAULT_CATEGORY_COLOR_KEY[key]}
+                onChange={(colorKey) => setCategoryColor(key, colorKey)}
               />
-            ) : (
-              <h2
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingLabel(key);
-                }}
-                className="cursor-text text-sm font-semibold hover:underline"
-              >
-                {labelFor(key)}
-              </h2>
-            )}
-          </div>
+              {editingLabel === key ? (
+                <input
+                  autoFocus
+                  defaultValue={labelFor(key)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onBlur={(e) => {
+                    setCategoryLabel(key, e.target.value);
+                    setEditingLabel(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") setEditingLabel(null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="rounded border border-black/[.2] bg-transparent px-1 text-sm font-semibold outline-none dark:border-white/[.3]"
+                />
+              ) : (
+                <h2
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingLabel(key);
+                  }}
+                  className="cursor-text text-sm font-semibold hover:underline"
+                >
+                  {labelFor(key)}
+                </h2>
+              )}
+            </div>
 
-          <div className="mt-3">
-            {!todosLoaded ? null : (
-              <ul className="flex flex-col gap-1">
-                {todos
-                  .filter((todo) => todo.category === key)
-                  .map((todo) => (
+            <div className="mt-3">
+              {!todosLoaded ? null : (
+                <ul className="flex flex-col gap-1">
+                  {shown.map((todo) => (
                     <li
                       key={todo.id}
                       className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-black/[.02] dark:hover:bg-white/[.03]"
@@ -237,15 +250,26 @@ export default function OtherPage() {
                       </button>
                     </li>
                   ))}
-              </ul>
-            )}
+                </ul>
+              )}
 
-            {todosLoaded && todos.filter((t) => t.category === key).length === 0 && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing here yet.</p>
-            )}
-          </div>
-        </section>
-      ))}
+              {todosLoaded && soon.length + later.length === 0 && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing here yet.</p>
+              )}
+              {todosLoaded && soon.length === 0 && later.length > 0 && !showLaterFor.has(key) && (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing due this week.</p>
+              )}
+              {todosLoaded && (
+                <DueLaterToggle
+                  count={later.length}
+                  expanded={showLaterFor.has(key)}
+                  onToggle={() => toggleShowLater(key)}
+                />
+              )}
+            </div>
+          </section>
+        );
+      })}
 
       <CanvasSyncPanel />
 

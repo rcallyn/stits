@@ -59,6 +59,7 @@ export function createEntityStore<T>(config: {
   // user's change (e.g. a just-ticked todo reappearing), so only the newest
   // refetch is applied, and none while a write is still in flight — the
   // refetch that follows that write reconciles instead.
+  const REFRESH_TIMEOUT_MS = 10_000;
   let latestRefresh = 0;
   let pendingWrites = 0;
   // Set when the API says we're logged out (e.g. on the login page, where
@@ -78,7 +79,12 @@ export function createEntityStore<T>(config: {
   async function refresh(): Promise<boolean> {
     const id = ++latestRefresh;
     try {
-      const res = await fetch(endpoint, { cache: "no-store" });
+      // A request that hangs (rather than fails) would otherwise leave the
+      // list stuck on its loading skeleton; give up on it so it's retried.
+      const res = await fetch(endpoint, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      });
       unauthorized = res.status === 401;
       if (!res.ok) throw new Error(String(res.status));
       const next = fromResponse(await res.json());

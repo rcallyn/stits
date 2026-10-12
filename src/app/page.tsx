@@ -203,7 +203,7 @@ export default function Home() {
         onEdit={setEditingTodo}
       />
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:min-h-[75vh]">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:min-h-[75vh]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">
             {viewMode === "week"

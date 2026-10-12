@@ -159,7 +159,10 @@ export default function WeekCalendar({
                       type="button"
                       onClick={() => onEditEvent?.(event)}
                       title={event.title}
-                      className={`truncate rounded px-1 py-0.5 text-left text-[10px] leading-tight ${fill} ${
+                      // w-0 + min-w-full: fill the day column but contribute
+                      // no width of its own, so a long title truncates instead
+                      // of stretching the column (the grid is min-w-max).
+                      className={`w-0 min-w-full truncate rounded px-1 py-0.5 text-left text-[10px] leading-tight ${fill} ${
                         done ? "opacity-60" : ""
                       }`}
                     >

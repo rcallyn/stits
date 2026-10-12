@@ -56,6 +56,16 @@ create table if not exists login_attempts (
   primary key (scope, ip)
 );
 
+-- Canvas assignments the user deleted, so the daily sync doesn't re-add
+-- them. `scope` is 'todo' (the todo was deleted) or 'event' (only its
+-- calendar entry was).
+create table if not exists canvas_dismissed (
+  canvas_id text not null,
+  scope text not null check (scope in ('todo', 'event')),
+  dismissed_at timestamptz not null default now(),
+  primary key (canvas_id, scope)
+);
+
 -- This app never uses Supabase's client SDK or its auto-generated REST API
 -- (PostgREST) — every query goes through a direct Postgres connection from
 -- the Next.js server, authenticated by this app's own password+2FA login.
@@ -69,7 +79,7 @@ do $$
 declare
   t text;
 begin
-  for t in select unnest(array['todos', 'schedule_events', 'settings', 'login_attempts'])
+  for t in select unnest(array['todos', 'schedule_events', 'settings', 'login_attempts', 'canvas_dismissed'])
   loop
     execute format('alter table %I enable row level security', t);
     execute format('revoke all on %I from anon, authenticated', t);

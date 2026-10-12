@@ -9,6 +9,7 @@ import {
 import { isOverdue, Todo } from "@/lib/todos";
 import { sendPushoverNotification } from "@/lib/pushover";
 import { quoteOfTheDay } from "@/lib/quotes";
+import { runCanvasSync } from "@/lib/canvasSync";
 
 // Vercel Cron jobs can only run at a fixed UTC time and Hobby-plan projects
 // can't run more often than daily, so a single trigger can't stay pinned to
@@ -59,6 +60,14 @@ export async function GET(req: NextRequest) {
   const { hour, isoDate: today } = currentEasternHourAndDate();
   if (hour !== TARGET_HOUR_ET) {
     return NextResponse.json({ skipped: true, reason: `hour ${hour} != ${TARGET_HOUR_ET}` });
+  }
+
+  // Pull in new Canvas assignments first so today's digest includes them. A
+  // feed problem shouldn't cost the digest, so a failure is only logged.
+  try {
+    await runCanvasSync();
+  } catch (err) {
+    console.error("Daily Canvas sync failed:", err);
   }
 
   const eventRows = await sql<EventRow[]>`

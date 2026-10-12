@@ -26,10 +26,11 @@ export default function CanvasSyncPanel() {
     <section className="rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
       <h2 className="text-sm font-semibold">Canvas</h2>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-        Pulls assignment due dates and any course calendar events from your Canvas calendar feed into
-        your Todos and Schedule, tagged School. Find your feed link in Canvas under Calendar → Calendar
-        Feed (bottom of the sidebar) — no access token needed. Re-syncing refreshes titles/dates and
-        removes items that no longer appear on Canvas. The link is stored only in this browser.
+        Pulls your assignments from your Canvas calendar feed into the Assignments list beside the
+        calendar, and puts each one at the top of its due date. Syncs automatically every morning at
+        7am. Assignments you complete stay completed, and ones you delete won&apos;t come back. Find
+        your feed link in Canvas under Calendar → Calendar Feed (bottom of the sidebar) — no access
+        token needed.
       </p>
 
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -48,7 +49,7 @@ export default function CanvasSyncPanel() {
           type="button"
           onClick={async () => {
             persist();
-            await sync({ feedUrl: feedUrl.trim() });
+            await sync(feedUrl);
           }}
           disabled={syncing}
           className="h-10 shrink-0 rounded-lg bg-[#0071e3] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] active:bg-[#006edb] disabled:opacity-50"

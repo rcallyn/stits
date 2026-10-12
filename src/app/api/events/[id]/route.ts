@@ -43,6 +43,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!idSchema.safeParse(realId).success) {
     return NextResponse.json({ error: "Invalid event id." }, { status: 400 });
   }
-  await sql`delete from schedule_events where id = ${realId}`;
+  // Deleting a Canvas assignment's calendar entry is remembered so the next
+  // sync doesn't put it back (see lib/canvasSync.ts).
+  await sql`
+    with deleted as (delete from schedule_events where id = ${realId} returning canvas_id, todo_id)
+    insert into canvas_dismissed (canvas_id, scope)
+    select canvas_id, 'event' from deleted where canvas_id is not null and todo_id is not null
+    on conflict do nothing
+  `;
   return NextResponse.json({ ok: true });
 }

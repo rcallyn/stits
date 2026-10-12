@@ -75,6 +75,11 @@ export async function patchSettings(changes: Partial<SettingsPayload>) {
   }
 }
 
+/** Refetch after a server-side change, e.g. a Canvas sync updating its timestamp. */
+export function refreshSettings(): Promise<void> {
+  return refresh();
+}
+
 export function subscribeSettings(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);

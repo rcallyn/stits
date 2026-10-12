@@ -41,6 +41,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!idSchema.safeParse(id).success) {
     return NextResponse.json({ error: "Invalid todo id." }, { status: 400 });
   }
-  await sql`delete from todos where id = ${id}`;
+  // Deleting a Canvas-synced todo is remembered so the next sync doesn't
+  // re-add it (see lib/canvasSync.ts).
+  await sql`
+    with deleted as (delete from todos where id = ${id} returning canvas_id)
+    insert into canvas_dismissed (canvas_id, scope)
+    select canvas_id, 'todo' from deleted where canvas_id is not null
+    on conflict do nothing
+  `;
   return NextResponse.json({ ok: true });
 }

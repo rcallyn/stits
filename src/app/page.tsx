@@ -26,6 +26,7 @@ import TodoEditModal from "@/components/TodoEditModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import IOSDatePicker from "@/components/IOSDatePicker";
 import StatsWidget from "@/components/StatsWidget";
+import AssignmentsPanel from "@/components/AssignmentsPanel";
 import WeekCalendar from "@/components/WeekCalendar";
 import { ListSkeleton, SkeletonLine } from "@/components/Skeleton";
 import { resolveColor } from "@/lib/itemColor";
@@ -92,11 +93,13 @@ export default function Home() {
   const weekStart = weekDays[0];
   const weekEnd = weekDays[weekDays.length - 1];
   const showTodayShortcut = viewMode === "week" ? !weekDays.includes(todayISODate()) : !isToday;
-  // School assignments are usually numerous and often auto-imported (Canvas
-  // sync) — only show ones due in the visible week so they don't drown out
-  // everything else. Other categories still show all open todos.
+  // Canvas-synced assignments get their own panel beside the calendar and
+  // stay out of the Todos list. Other School todos only show when due in the
+  // visible week so they don't drown out everything else; other categories
+  // show all open todos.
+  const assignments = todos.filter((todo) => todo.canvasId);
   const openTodos = todos.filter((todo) => {
-    if (todo.done) return false;
+    if (todo.done || todo.canvasId) return false;
     if (todo.category === "school") {
       return Boolean(todo.dueDate && todo.dueDate >= weekStart && todo.dueDate <= weekEnd);
     }
@@ -193,6 +196,13 @@ export default function Home() {
       <StatsWidget todos={todos} events={events} />
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
+      <AssignmentsPanel
+        assignments={assignments}
+        loaded={todosLoaded}
+        onToggle={toggleTodo}
+        onEdit={setEditingTodo}
+      />
+
       <section className="flex min-h-0 flex-1 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:min-h-[75vh]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">

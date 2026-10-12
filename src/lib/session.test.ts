@@ -39,6 +39,46 @@ describe("session cookie", () => {
   });
 });
 
+describe("session issued-at and revocation", () => {
+  it("reads back the issued-at time", async () => {
+    const { createSessionCookieValue, readSessionIssuedAt } = await load();
+    const value = await createSessionCookieValue(1_700_000_000_000);
+    expect(await readSessionIssuedAt(value)).toBe(1_700_000_000_000);
+  });
+
+  it("treats the pre-revocation 'authenticated' cookie as issued at 0", async () => {
+    const { readSessionIssuedAt } = await load();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode("test-secret-value"),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode("authenticated"));
+    const hex = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    expect(await readSessionIssuedAt(`authenticated.${hex}`)).toBe(0);
+  });
+
+  it("rejects validly signed but malformed payloads and forged timestamps", async () => {
+    const { createSessionCookieValue, readSessionIssuedAt } = await load();
+    const value = await createSessionCookieValue(1000);
+    expect(await readSessionIssuedAt(value.replace("v1.1000", "v1.9999"))).toBeNull();
+    expect(await readSessionIssuedAt("v1.abc.deadbeef")).toBeNull();
+  });
+
+  it("revokes sessions issued before the cutoff only", async () => {
+    const { isSessionRevoked } = await load();
+    expect(isSessionRevoked(0, 0)).toBe(false);
+    expect(isSessionRevoked(0, 5)).toBe(true);
+    expect(isSessionRevoked(4, 5)).toBe(true);
+    expect(isSessionRevoked(5, 5)).toBe(false);
+    expect(isSessionRevoked(6, 5)).toBe(false);
+  });
+});
+
 describe("pending 2FA cookie", () => {
   it("accepts the matching code before it expires", async () => {
     const { createPendingCookieValue, verifyPendingCookieValue } = await load();

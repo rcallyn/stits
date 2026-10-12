@@ -17,7 +17,13 @@ export const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400;
 // once this is actually deployed behind HTTPS.
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";
 
-const SESSION_PAYLOAD = "authenticated";
+// Session payloads are `v1.<issuedAtMs>`. The issued-at lets the server
+// revoke every session minted before a given moment ("log out everywhere",
+// see sessionRevocation.ts). Cookies from before this scheme carry the bare
+// payload below; they count as issued at 0, so they stay valid until the
+// first revocation and then die with everything else.
+const LEGACY_SESSION_PAYLOAD = "authenticated";
+const SESSION_PAYLOAD_PREFIX = "v1.";
 const PENDING_TTL_MS = 5 * 60 * 1000;
 
 const encoder = new TextEncoder();
@@ -74,14 +80,31 @@ async function verify(token: string, secret: string): Promise<string | null> {
   return valid ? payload : null;
 }
 
-export async function createSessionCookieValue(): Promise<string> {
-  return sign(SESSION_PAYLOAD, requireSecret());
+export async function createSessionCookieValue(now: number = Date.now()): Promise<string> {
+  return sign(`${SESSION_PAYLOAD_PREFIX}${now}`, requireSecret());
+}
+
+// Returns when the session cookie was issued (ms since epoch; 0 for a legacy
+// cookie), or null if the cookie is missing, forged, or malformed. Says
+// nothing about revocation — compare against isSessionRevoked for that.
+export async function readSessionIssuedAt(value: string | undefined): Promise<number | null> {
+  if (!value) return null;
+  const payload = await verify(value, requireSecret());
+  if (payload === null) return null;
+  if (payload === LEGACY_SESSION_PAYLOAD) return 0;
+  if (!payload.startsWith(SESSION_PAYLOAD_PREFIX)) return null;
+  const digits = payload.slice(SESSION_PAYLOAD_PREFIX.length);
+  if (!/^\d{1,15}$/.test(digits)) return null;
+  return Number(digits);
+}
+
+// A session is revoked when it was issued before the "valid after" cutoff.
+export function isSessionRevoked(issuedAt: number, validAfter: number): boolean {
+  return issuedAt < validAfter;
 }
 
 export async function isValidSessionCookie(value: string | undefined): Promise<boolean> {
-  if (!value) return false;
-  const payload = await verify(value, requireSecret());
-  return payload === SESSION_PAYLOAD;
+  return (await readSessionIssuedAt(value)) !== null;
 }
 
 export async function createPendingCookieValue(code: string): Promise<string> {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
+import { isSessionRevoked, readSessionIssuedAt, SESSION_COOKIE_NAME } from "@/lib/session";
+import { getSessionsValidAfter } from "@/lib/sessionRevocation";
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -63,8 +64,12 @@ export async function proxy(request: NextRequest) {
   }
 
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (await isValidSessionCookie(cookie)) {
-    return pass();
+  const issuedAt = await readSessionIssuedAt(cookie);
+  if (issuedAt !== null) {
+    // Fails closed: if the revocation cutoff can't be read, the request is
+    // treated as unauthenticated rather than letting a revoked cookie through.
+    const validAfter = await getSessionsValidAfter().catch(() => Infinity);
+    if (!isSessionRevoked(issuedAt, validAfter)) return pass();
   }
 
   // API calls get a 401 they can handle in place; page navigations redirect

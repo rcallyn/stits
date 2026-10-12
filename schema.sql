@@ -40,8 +40,12 @@ create table if not exists settings (
   category_order jsonb not null default '[]',
   canvas_feed_url text,
   canvas_last_synced_at timestamptz,
+  -- Session cookies issued before this moment are rejected ("log out everywhere").
+  sessions_valid_after timestamptz,
   constraint settings_singleton check (id = 1)
 );
+
+alter table settings add column if not exists sessions_valid_after timestamptz;
 
 insert into settings (id) values (1) on conflict (id) do nothing;
 

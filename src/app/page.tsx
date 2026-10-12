@@ -186,14 +186,11 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-6 py-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-        <div className="w-full sm:w-96">
-          <QuickAdd />
-        </div>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
 
-      <StatsWidget todos={todos} events={events} />
+      <StatsWidget todos={todos}>
+        <QuickAdd />
+      </StatsWidget>
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
       <AssignmentsPanel

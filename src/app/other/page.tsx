@@ -5,7 +5,7 @@ import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { useCategoryLabels } from "@/hooks/useCategoryLabels";
 import { useCategoryOrder } from "@/hooks/useCategoryOrder";
-import { splitDueLater, Todo } from "@/lib/todos";
+import { splitVisible, Todo } from "@/lib/todos";
 import { Category, isCategory } from "@/lib/categories";
 import TodoEditModal from "@/components/TodoEditModal";
 import TodoMeta from "@/components/TodoMeta";
@@ -28,7 +28,7 @@ export default function OtherPage() {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [draggingCategory, setDraggingCategory] = useState<Category | null>(null);
   const [editingLabel, setEditingLabel] = useState<Category | null>(null);
-  // Categories whose "+N due later" items are currently expanded.
+  // Categories whose "+N more" items are currently expanded.
   const [showLaterFor, setShowLaterFor] = useState<Set<Category>>(new Set());
 
   function toggleShowLater(key: Category) {
@@ -140,8 +140,8 @@ export default function OtherPage() {
       </form>
 
       {order.map((key) => {
-        const { soon, later } = splitDueLater(todos.filter((todo) => todo.category === key));
-        const shown = showLaterFor.has(key) ? [...soon, ...later] : soon;
+        const { visible, hidden } = splitVisible(todos.filter((todo) => todo.category === key));
+        const shown = showLaterFor.has(key) ? [...visible, ...hidden] : visible;
         return (
           <section
             key={key}
@@ -253,15 +253,12 @@ export default function OtherPage() {
                 </ul>
               )}
 
-              {todosLoaded && soon.length + later.length === 0 && (
+              {todosLoaded && visible.length === 0 && (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing here yet.</p>
-              )}
-              {todosLoaded && soon.length === 0 && later.length > 0 && !showLaterFor.has(key) && (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">Nothing due this week.</p>
               )}
               {todosLoaded && (
                 <DueLaterToggle
-                  count={later.length}
+                  count={hidden.length}
                   expanded={showLaterFor.has(key)}
                   onToggle={() => toggleShowLater(key)}
                 />

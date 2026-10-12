@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isOverdue, sortTodos, splitDueLater, subtaskProgress, Todo } from "@/lib/todos";
+import { isOverdue, sortTodos, splitDueLater, splitVisible, subtaskProgress, Todo } from "@/lib/todos";
 
 function todo(partial: Partial<Todo> & { id: string }): Todo {
   return { title: "t", done: false, ...partial };
@@ -73,5 +73,17 @@ describe("splitDueLater", () => {
     const { soon, later } = splitDueLater(items, "2026-10-12");
     expect(soon.map((t) => t.id)).toEqual(["none", "overdue", "today", "six-days"]);
     expect(later.map((t) => t.id)).toEqual(["a-week", "later"]);
+  });
+});
+
+describe("splitVisible", () => {
+  it("shows at most five, this week's items first", () => {
+    const items = [
+      { id: "later", dueDate: "2026-11-30" },
+      ...["a", "b", "c", "d", "e", "f"].map((id) => ({ id, dueDate: "2026-10-13" })),
+    ];
+    const { visible, hidden } = splitVisible(items, "2026-10-12");
+    expect(visible.map((t) => t.id)).toEqual(["a", "b", "c", "d", "e"]);
+    expect(hidden.map((t) => t.id)).toEqual(["f", "later"]);
   });
 });

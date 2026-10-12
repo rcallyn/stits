@@ -37,9 +37,11 @@ export function isOverdue(todo: Pick<Todo, "dueDate" | "done">): boolean {
   return Boolean(todo.dueDate) && !todo.done && todo.dueDate! < todayISODate();
 }
 
-// Lists show what's undated or due within the next week (overdue included);
-// anything further out sits behind a "+N due later" button.
+// Lists show at most VISIBLE_LIMIT items, favouring what's undated or due
+// within the next week (overdue included); the rest sit behind a "+N more"
+// button.
 export const DUE_SOON_DAYS = 7;
+export const VISIBLE_LIMIT = 5;
 
 export function splitDueLater<T extends Pick<Todo, "dueDate">>(
   todos: T[],
@@ -52,6 +54,16 @@ export function splitDueLater<T extends Pick<Todo, "dueDate">>(
     (todo.dueDate && todo.dueDate >= cutoff ? later : soon).push(todo);
   }
   return { soon, later };
+}
+
+/** Splits a list into what to show up front and what goes behind "+N more". */
+export function splitVisible<T extends Pick<Todo, "dueDate">>(
+  todos: T[],
+  today: string = todayISODate()
+): { visible: T[]; hidden: T[] } {
+  const { soon, later } = splitDueLater(todos, today);
+  const ordered = [...soon, ...later];
+  return { visible: ordered.slice(0, VISIBLE_LIMIT), hidden: ordered.slice(VISIBLE_LIMIT) };
 }
 
 export function subtaskProgress(todo: Pick<Todo, "subtasks">): { done: number; total: number } {

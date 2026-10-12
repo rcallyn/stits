@@ -6,7 +6,7 @@ type Props = {
   onToggle: () => void;
 };
 
-// The "+N due later" button under a list trimmed by splitDueLater.
+// The "+N more" button under a list trimmed by splitVisible.
 export default function DueLaterToggle({ count, expanded, onToggle }: Props) {
   if (count === 0) return null;
   return (
@@ -16,7 +16,7 @@ export default function DueLaterToggle({ count, expanded, onToggle }: Props) {
       aria-expanded={expanded}
       className="mt-2 rounded-full bg-black/[.05] px-3 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-black/[.08] hover:text-foreground dark:bg-white/[.08] dark:text-zinc-400 dark:hover:bg-white/[.12]"
     >
-      {expanded ? `Hide ${count} due later` : `+${count} due later`}
+      {expanded ? "Show less" : `+${count} more`}
     </button>
   );
 }

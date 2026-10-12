@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { formatEventDate, shiftISODate, todayISODate } from "@/lib/schedule";
-import { isOverdue, splitDueLater, Todo } from "@/lib/todos";
+import { isOverdue, splitVisible, Todo } from "@/lib/todos";
 import { startTodoDrag } from "@/hooks/useTodoDrag";
 import { ListSkeleton } from "@/components/Skeleton";
 import DueLaterToggle from "@/components/DueLaterToggle";
 
-// Canvas-synced assignments, kept out of the Todos list. Shows what's overdue
-// or due within a week; the rest sit behind a "+N due later" button.
+// Canvas-synced assignments, kept out of the Todos list. Shows the first five
+// (soonest due); the rest sit behind a "+N more" button.
 
 type Props = {
   assignments: Todo[];
@@ -29,8 +29,8 @@ export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit
   const open = assignments
     .filter((todo) => !todo.done)
     .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
-  const { soon, later } = splitDueLater(open, today);
-  const shown = showLater ? [...soon, ...later] : soon;
+  const { visible, hidden } = splitVisible(open, today);
+  const shown = showLater ? [...visible, ...hidden] : visible;
 
   return (
     <section className="flex min-h-0 flex-col rounded-xl bg-white p-4 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none lg:w-72 lg:shrink-0">
@@ -40,9 +40,7 @@ export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit
         {!loaded ? (
           <ListSkeleton rows={4} />
         ) : shown.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {later.length > 0 ? "Nothing due this week." : "No assignments due."}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">No assignments due.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {shown.map((todo) => (
@@ -82,7 +80,7 @@ export default function AssignmentsPanel({ assignments, loaded, onToggle, onEdit
         )}
         {loaded && (
           <DueLaterToggle
-            count={later.length}
+            count={hidden.length}
             expanded={showLater}
             onToggle={() => setShowLater((v) => !v)}
           />

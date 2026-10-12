@@ -25,10 +25,10 @@ by Claude, Anthropic's AI coding assistant.
   plus due dates and a nudge when something's overdue.
 - **Pulls assignments straight from Canvas** once I give it my calendar feed
   link, so I don't have to enter school deadlines by hand.
-- **Texts me every morning at 7am** with the day's schedule, what's due, and
+- **Sends me a push notification every morning at 7am** with the day's schedule, what's due, and
   a quote to start the day.
-- **Installs like a real app** on my phone or laptop, and still works (mostly)
-  with no connection.
+- **Installs like a real app** on my phone or laptop, and the app shell's static
+  assets are cached, though data needs a connection.
 - **No accounts, just one password** plus a push-notification code to log in
   — it only ever needed to work for one person: me.
 

@@ -23,7 +23,7 @@ export type EntityStore<T> = {
   getServerHydratedSnapshot: () => boolean;
   ensureHydrated: () => void;
   /** Refetch the whole list from the server and replace the cache. */
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean>;
   /** Current list, for callers outside React (e.g. cross-store cache busting). */
   getAll: () => T[];
   /**
@@ -54,6 +54,17 @@ export function createEntityStore<T>(config: {
   const listeners = new Set<() => void>();
   const EMPTY: T[] = [];
 
+  // Refetches can resolve out of order, and one that started before a write
+  // landed carries the pre-write list. Applying it would briefly undo the
+  // user's change (e.g. a just-ticked todo reappearing), so only the newest
+  // refetch is applied, and none while a write is still in flight — the
+  // refetch that follows that write reconciles instead.
+  let latestRefresh = 0;
+  let pendingWrites = 0;
+  // Set when the API says we're logged out (e.g. on the login page, where
+  // shared components still mount) — not worth retrying or toasting.
+  let unauthorized = false;
+
   function emit() {
     for (const listener of listeners) listener();
   }
@@ -63,22 +74,52 @@ export function createEntityStore<T>(config: {
     emit();
   }
 
-  async function refresh(): Promise<void> {
+  /** Resolves true if the list was fetched (even if a newer fetch superseded it). */
+  async function refresh(): Promise<boolean> {
+    const id = ++latestRefresh;
     try {
-      const res = await fetch(endpoint);
+      const res = await fetch(endpoint, { cache: "no-store" });
+      unauthorized = res.status === 401;
       if (!res.ok) throw new Error(String(res.status));
-      setStore(fromResponse(await res.json()));
+      const next = fromResponse(await res.json());
+      if (id === latestRefresh && pendingWrites === 0) setStore(next);
+      return true;
     } catch {
       // Keep the last good cache; the next successful call resyncs it. No
       // toast here — a background refetch failing is less actionable than a
       // user-initiated write failing.
+      return false;
     }
+  }
+
+  // A failed first load used to leave the list silently empty for the rest
+  // of the visit. Retry a few times before giving up, and refetch whenever
+  // the tab regains focus or the connection comes back.
+  const RETRY_DELAYS_MS = [1000, 3000, 8000];
+
+  function listenForReconnect() {
+    const resync = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("online", resync);
+    document.addEventListener("visibilitychange", resync);
+  }
+
+  async function hydrate() {
+    let ok = await refresh();
+    for (const delay of RETRY_DELAYS_MS) {
+      if (ok || unauthorized) break;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      ok = await refresh();
+    }
+    if (!ok && !unauthorized) pushToast(`Couldn't load your ${noun}s — check your connection, then switch back to this tab.`);
   }
 
   function ensureHydrated() {
     if (hydrated || hydrating || typeof window === "undefined") return;
     hydrating = true;
-    refresh().finally(() => {
+    listenForReconnect();
+    hydrate().finally(() => {
       hydrated = true;
       hydrating = false;
       emit();
@@ -91,6 +132,7 @@ export function createEntityStore<T>(config: {
     opts?: { action?: string; afterRefresh?: () => void }
   ) {
     setStore(optimistic(store));
+    pendingWrites++;
     Promise.resolve()
       .then(send)
       .then((res) => {
@@ -100,6 +142,7 @@ export function createEntityStore<T>(config: {
         pushToast(`Couldn't ${opts?.action ?? "save"} that ${noun} — your change was undone.`);
       })
       .finally(() => {
+        pendingWrites--;
         refresh().then(() => opts?.afterRefresh?.());
       });
   }

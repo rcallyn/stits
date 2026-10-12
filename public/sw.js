@@ -13,7 +13,7 @@
 // straight to the network, which is the path that interference like that
 // doesn't break.
 
-const CACHE = "stits-v2";
+const CACHE = "stits-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -45,8 +45,12 @@ self.addEventListener("fetch", (event) => {
       (hit) =>
         hit ||
         fetch(request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          // Only cache real hits — caching an error response here would
+          // serve that error for this asset forever.
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return res;
         })
     )

@@ -23,7 +23,7 @@ describe("createEntityStore.mutate", () => {
   it("applies the optimistic change, then reconciles with a refetch on success", async () => {
     const server: Row[] = [{ id: "a", v: 1 }];
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      if (!init) return new Response(JSON.stringify({ rows: server }), { status: 200 });
+      if (!init?.method) return new Response(JSON.stringify({ rows: server }), { status: 200 });
       // the write: bump the server copy
       server[0] = { id: "a", v: 2 };
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -46,7 +46,7 @@ describe("createEntityStore.mutate", () => {
   it("rolls back via refetch and pushes a toast when the write fails", async () => {
     const server: Row[] = [{ id: "a", v: 1 }];
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      if (!init) return new Response(JSON.stringify({ rows: server }), { status: 200 });
+      if (!init?.method) return new Response(JSON.stringify({ rows: server }), { status: 200 });
       return new Response(JSON.stringify({ error: "nope" }), { status: 400 });
     }) as unknown as typeof fetch;
 
@@ -66,5 +66,75 @@ describe("createEntityStore.mutate", () => {
     const added = getToasts().slice(toastsBefore);
     expect(added).toHaveLength(1);
     expect(added[0].message).toMatch(/couldn't update that row/i);
+  });
+});
+
+describe("createEntityStore refetch ordering", () => {
+  it("ignores a refetch that resolves after a newer one", async () => {
+    const releases: Array<() => void> = [];
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      const v = ++call;
+      await new Promise<void>((r) => releases.push(r));
+      return new Response(JSON.stringify({ rows: [{ id: "a", v }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const store = makeStore(fetchMock);
+    const first = store.refresh();
+    const second = store.refresh();
+    releases[1](); // newer response lands first
+    await second;
+    releases[0](); // stale response lands last
+    await first;
+    expect(store.getAll()).toEqual([{ id: "a", v: 2 }]);
+  });
+
+  it("doesn't apply a refetch while a write is still in flight", async () => {
+    const server: Row[] = [{ id: "a", v: 1 }];
+    let releaseWrite: () => void = () => {};
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH") {
+        await new Promise<void>((r) => (releaseWrite = r));
+        server[0] = { id: "a", v: 2 };
+        return new Response("{}", { status: 200 });
+      }
+      return new Response(JSON.stringify({ rows: server }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const store = makeStore(fetchMock);
+    store.mutate(
+      (cur) => [...cur.filter((r) => r.id !== "a"), { id: "a", v: 2 }],
+      () => fetch("/api/rows/a", { method: "PATCH" })
+    );
+    await store.refresh(); // e.g. another write's follow-up refetch, pre-PATCH data
+    expect(store.getAll()).toEqual([{ id: "a", v: 2 }]); // optimistic value kept
+
+    releaseWrite();
+    await flush();
+    await flush();
+    expect(store.getAll()).toEqual([{ id: "a", v: 2 }]);
+  });
+});
+
+describe("createEntityStore.ensureHydrated", () => {
+  it("retries a failed first load instead of settling on an empty list", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { addEventListener: () => {} });
+    vi.stubGlobal("document", { addEventListener: () => {}, visibilityState: "visible" });
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call++;
+      if (call === 1) return new Response("", { status: 500 });
+      return new Response(JSON.stringify({ rows: [{ id: "a", v: 1 }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const store = makeStore(fetchMock);
+    store.ensureHydrated();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getHydratedSnapshot()).toBe(false); // still loading, not "empty"
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.getHydratedSnapshot()).toBe(true);
+    expect(store.getAll()).toEqual([{ id: "a", v: 1 }]);
+    vi.useRealTimers();
   });
 });

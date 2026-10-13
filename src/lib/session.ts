@@ -46,6 +46,18 @@ function hexToBytes(hex: string): Uint8Array<ArrayBuffer> | null {
   return bytes;
 }
 
+// Compares two strings without bailing out at the first differing byte, so
+// response time doesn't reveal how much of a guessed code was correct.
+export function timingSafeEqual(a: string, b: string): boolean {
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  let diff = aBytes.length ^ bBytes.length;
+  for (let i = 0; i < aBytes.length; i++) {
+    diff |= aBytes[i] ^ (bBytes[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 async function getKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
@@ -98,7 +110,8 @@ export async function verifyPendingCookieValue(
   if (!payload) return false;
   try {
     const { code, expiresAt } = JSON.parse(payload) as { code: string; expiresAt: number };
-    return code === submittedCode && Date.now() < expiresAt;
+    if (typeof code !== "string" || typeof expiresAt !== "number") return false;
+    return timingSafeEqual(code, submittedCode) && Date.now() < expiresAt;
   } catch {
     return false;
   }

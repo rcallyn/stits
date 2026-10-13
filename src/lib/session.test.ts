@@ -57,3 +57,22 @@ describe("pending 2FA cookie", () => {
     expect(await verifyPendingCookieValue(value, "123456")).toBe(false);
   });
 });
+
+describe("timingSafeEqual", () => {
+  it("matches only identical strings", async () => {
+    const { timingSafeEqual } = await load();
+    expect(timingSafeEqual("123456", "123456")).toBe(true);
+    expect(timingSafeEqual("123456", "123457")).toBe(false);
+    expect(timingSafeEqual("123456", "12345")).toBe(false);
+    expect(timingSafeEqual("123456", "1234567")).toBe(false);
+    expect(timingSafeEqual("", "")).toBe(true);
+    expect(timingSafeEqual("", "0")).toBe(false);
+  });
+
+  it("rejects a submitted code that is a prefix of the real one", async () => {
+    const { createPendingCookieValue, verifyPendingCookieValue } = await load();
+    const value = await createPendingCookieValue("123456");
+    expect(await verifyPendingCookieValue(value, "1234")).toBe(false);
+    expect(await verifyPendingCookieValue(value, "")).toBe(false);
+  });
+});

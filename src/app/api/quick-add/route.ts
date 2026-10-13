@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     output_config: {
       format: parsedItemOutputFormat(),
     },
-    system: `You turn a short piece of natural language into either a calendar event or a todo item. The user's current local date/time is: ${nowDate}. Resolve relative dates ("tomorrow", "next Friday", "in two weeks") against that. If the text describes something happening at a specific time, classify it as an event. If it describes a task with no specific time (even if it has a deadline/date), classify it as a todo.${historyClause}`,
+    system: `You turn a short piece of natural language into either a calendar event or a todo item. The user's current local date/time is: ${nowDate}. Resolve relative dates ("tomorrow", "next Friday", "in two weeks") against that. If the text describes something happening at a specific time, classify it as an event. If it describes a task with no specific time (even if it has a deadline/date), classify it as a todo. If an event is stated to repeat ("every Monday", "daily", "gym MWF at 7"), fill in the repeat field and set date to its first occurrence on or after today; never set the repeat field for one-off events or todos.${historyClause}`,
     messages: [{ role: "user", content: text }],
   });
 

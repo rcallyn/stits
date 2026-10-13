@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useTodos } from "@/hooks/useTodos";
-import { ParsedItem } from "@/lib/quickAdd";
+import { ParsedItem, buildQuickAddEvents, describeRepeat } from "@/lib/quickAdd";
 import { formatEventDate, formatEventTime } from "@/lib/schedule";
 
 const MAX_HISTORY_TITLES = 100;
@@ -46,7 +46,12 @@ export default function QuickAdd() {
 
       const item: ParsedItem = data.item;
       if (item.kind === "event") {
-        addEvent({ title: item.title, date: item.date, time: item.time ?? "", endTime: item.endTime });
+        const payloads = buildQuickAddEvents(item);
+        if (payloads.length === 0) {
+          setStatus({ state: "error", message: "Couldn't work out a date for that." });
+          return;
+        }
+        payloads.forEach(addEvent);
       } else {
         addTodo({ title: item.title, dueDate: item.dueDate });
       }
@@ -88,6 +93,7 @@ export default function QuickAdd() {
               Added event &ldquo;{status.item.title}&rdquo; on{" "}
               {formatEventDate(status.item.date)}
               {status.item.time ? ` · ${formatEventTime(status.item.time)}` : ""}
+              {status.item.repeat ? ` · ${describeRepeat(status.item.repeat)}` : ""}
             </>
           ) : (
             <>

@@ -3,15 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // A fake postgres.js: each created pool records its queries, and the first
 // pool's queries hang forever, like a connection that died while its
 // serverless instance was suspended.
-const pools: { ended: boolean; queries: number }[] = [];
+const pools: { ended: boolean; queries: number; last?: unknown }[] = [];
 vi.mock("postgres", () => ({
   default: () => {
-    const state = { ended: false, queries: 0 };
+    const state: (typeof pools)[number] = { ended: false, queries: 0 };
     const index = pools.push(state) - 1;
     const sql = (strings: TemplateStringsArray | Record<string, unknown>) => {
       if (!Array.isArray(strings)) return { fragment: strings };
       state.queries++;
-      return index === 0 ? new Promise(() => {}) : Promise.resolve([{ ok: true }]);
+      state.last = index === 0 ? new Promise(() => {}) : Promise.resolve([{ ok: true }]);
+      return state.last;
     };
     sql.json = (value: unknown) => ({ json: value });
     sql.begin = (fn: (tx: unknown) => Promise<unknown>) => fn(sql);
@@ -40,6 +41,16 @@ describe("sql", () => {
     await expect(sql`select 1`).resolves.toEqual([{ ok: true }]);
     expect(pools).toHaveLength(2);
     expect(pools[1].queries).toBe(1);
+  });
+
+  // postgres.js only treats a nested sql`...` as a fragment when it's the
+  // Query object it created (`instanceof Query`); a wrapping Promise gets
+  // sent as the string "[object Promise]" instead.
+  it("returns postgres's own query object, so it still nests as a fragment", async () => {
+    const { sql } = await import("@/lib/db");
+    const query = sql`select 1`;
+    expect(query).toBe(pools[pools.length - 1].last);
+    await expect(query).resolves.toEqual([{ ok: true }]);
   });
 
   it("passes fragment helpers straight through", async () => {

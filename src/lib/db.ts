@@ -95,9 +95,15 @@ export const sql = new Proxy((() => {}) as unknown as Sql, {
   apply(_target, _thisArg, args: unknown[]) {
     const current = pool;
     const result = Reflect.apply(current as unknown as (...a: unknown[]) => unknown, current, args);
-    return isTemplateCall(args)
-      ? withDeadline(result as PromiseLike<unknown>, QUERY_TIMEOUT_MS, current)
-      : result;
+    if (!isTemplateCall(args)) return result;
+    // Keep the original Query object (so it still works as a nested
+    // fragment inside another sql`...`) and only add the deadline when
+    // it's actually awaited.
+    const query = result as PromiseLike<unknown> & { then: PromiseLike<unknown>["then"] };
+    const originalThen = query.then.bind(query);
+    query.then = ((onFulfilled, onRejected) =>
+      withDeadline({ then: originalThen }, QUERY_TIMEOUT_MS, current).then(onFulfilled, onRejected)) as typeof query.then;
+    return query;
   },
   get(_target, prop) {
     const current = pool;

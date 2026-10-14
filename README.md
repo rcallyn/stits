@@ -7,9 +7,10 @@
 ![Postgres](https://img.shields.io/badge/Postgres-Supabase-336791)
 
 A full-stack, multi-user calendar and todo app I use every day. It puts my
-week and my task list on one dashboard, adds items from plain English ("dentist tomorrow
-at 3pm"), pulls my school deadlines from Canvas, and sends a push
-notification each morning with the day's plan.
+week and my task list on one dashboard, adds items from plain English
+("dentist tomorrow at 3pm"), pulls my school deadlines from Canvas, and
+sends a push notification each morning with the day's plan. Other people
+can request their own account, which I approve from inside the app.
 
 It's deployed on Vercel with a Postgres database and has been my daily
 planner since July 2026.
@@ -25,8 +26,8 @@ Anthropic's AI coding assistant, working from my direction. I wrote the
 specs, broke the work into commits, caught bugs by using the app on my
 phone and laptop every day, and decided what shipped.
 
-Over about three months that came to ~8,000 lines of TypeScript in more than
-55 commits, with continuous integration on every push.
+Over about three months that came to ~9,400 lines of TypeScript in more than
+60 commits, with continuous integration on every push.
 
 ## Features
 
@@ -46,13 +47,16 @@ Over about three months that came to ~8,000 lines of TypeScript in more than
   assignments into todos plus calendar entries. It runs daily on the server,
   updates changed items, and remembers deletions so they don't come back.
 - **7am daily digest.** A push notification with today's schedule, what's
-  due, and a quote.
+  due, and a quote, for every user who has added a Pushover key.
 - **Search palette** across all todos and events, with jump-to-date.
 - **Installable PWA** on iOS and desktop, with light, dark and
   follow-the-system themes.
-- **Accounts.** Anyone can request an account at `/signup`; an admin
-  approves or rejects each request in the app. Every user's todos, events,
-  settings and Canvas feed are their own.
+- **Accounts.** Anyone can request an account at `/signup`. Admins with a
+  Pushover key get a push alert for each request, and approve or reject it
+  under Other → Users.
+  Every user's todos, events, categories and Canvas feed are their own, and
+  each user can change their password or add a Pushover key (for 2FA and
+  the digest) under Other → Account.
 - **Backup export and import** as a JSON file.
 
 ## Tech stack
@@ -83,10 +87,19 @@ I treated it like a production service:
   scrypt work for unknown emails, so neither reveals who has an account.
 - **Two-step login:** a password checked against a salted scrypt hash in
   constant time, then (for users who've added a Pushover key) a one-time
-  code sent by push notification.
-- **Brute-force limits** on both login steps and on signup, stored in Postgres so they hold
-  across serverless cold starts. They're keyed on a client IP that can't be
-  spoofed through `X-Forwarded-For`.
+  code sent by push notification. The short-lived cookie that bridges the
+  two steps holds only an HMAC of the code, never the code itself.
+- **Revocable sessions:** session cookies carry a version number that's
+  checked on every request. Changing your password bumps it, which signs
+  out every other device. Changing the password or the Pushover key also
+  asks for the current password, so a stolen session can't take the
+  account over.
+- **Brute-force limits** on both login steps and on signup, stored in
+  Postgres so they hold across serverless cold starts. Password guesses are
+  limited per client IP (one that can't be spoofed through
+  `X-Forwarded-For`) and per account, and a successful login never resets
+  the counter, so an attacker can't clear it by signing in to their own
+  account between guesses.
 - **Strict Content Security Policy** with a fresh nonce on every request (no
   `unsafe-inline` scripts), plus the usual hardening headers.
 - **Database lockdown:** row-level security is on and Supabase's default
@@ -105,6 +118,9 @@ I treated it like a production service:
 - **Time zones and DST.** Vercel Cron only runs on fixed UTC times, so the
   digest is scheduled twice and only the run that lands on 7am Eastern does
   anything.
+- **One cron run for every user.** The daily job syncs every user's Canvas
+  feed concurrently, then sends each digest; one user's slow or broken
+  feed is logged and doesn't cost anyone else their digest.
 - **A deliberately limited service worker.** It caches only immutable build
   assets. An earlier version that served an offline page showed "you're
   offline" to users who were online behind VPNs and antivirus proxies, so I
@@ -115,8 +131,9 @@ I treated it like a production service:
   details are in `src/lib/quickAdd.ts`.
 
 **Testing.** Unit tests cover the pure logic where bugs would be hardest to
-see: recurrence expansion, iCalendar parsing, Canvas sync, session signing,
-password hashing, rate limiting, request schemas, the quick-add output schema and the optimistic store.
+see: recurrence expansion, iCalendar parsing, Canvas sync, session and 2FA
+cookie signing, password hashing, rate limiting, request schemas, the
+quick-add output schema and the optimistic store.
 
 ## Architecture
 
@@ -143,6 +160,7 @@ src/
   hooks/       client data stores and UI state
   lib/         domain logic (schedule, todos, ics, canvasSync), auth, db, schemas
   proxy.ts     auth gate and security headers
+scripts/       admin setup and migration, database backup, password hashing
 schema.sql     database schema, RLS and grants
 ```
 
@@ -162,9 +180,11 @@ npm run dev
 
 Earlier versions had one shared password and no accounts. Set
 `OWNER_EMAIL` in `.env.local` alongside your existing `APP_PASSWORD_HASH`
-and `PUSHOVER_USER_KEY`, then run the same script against the database:
+and `PUSHOVER_USER_KEY`, back up the database, then run the same script
+against it:
 
 ```bash
+node --env-file=.env.local scripts/backup-db.mjs
 node --env-file=.env.local scripts/migrate-multi-user.mjs
 ```
 
@@ -184,7 +204,7 @@ Everyone is signed out once and signs back in with email and password.
 | `ANTHROPIC_API_KEY`   | yes      | Powers the natural-language quick add.               |
 | `PUSHOVER_APP_TOKEN`  | yes      | Sends login codes, the daily digest and signup alerts. Each user adds their own Pushover user key in the app. |
 | `PUSHOVER_USER_KEY`   | setup    | The first admin's Pushover user key, read only by the migration script. |
-| `CRON_SECRET`         | no       | Only needed if you want the daily digest to run.     |
+| `CRON_SECRET`         | no       | Only needed if you want the daily digest and Canvas sync to run. |
 
 "setup" variables are only needed in `.env.local` when you run the
 migration script, not in the deployed app.
@@ -199,3 +219,14 @@ migration script, not in the deployed app.
 | `npm run test:run`  | Runs the tests once.                |
 | `npm run lint`      | Lints the code.                     |
 | `npm run typecheck` | Type-checks without building.       |
+
+### Scripts
+
+The first two read the database settings from `.env.local`:
+`node --env-file=.env.local scripts/<name>.mjs`.
+
+| Script                            | What it does |
+| --------------------------------- | ------------ |
+| `scripts/migrate-multi-user.mjs`  | Creates the first admin account; on an older database, also upgrades it to multi-user. Safe to re-run. |
+| `scripts/backup-db.mjs`           | Read-only: saves every table to a JSON file in `.backups/` (git-ignored). |
+| `scripts/hash-password.mjs`       | Prints an `APP_PASSWORD_HASH` for a password, so the plaintext isn't stored: `node scripts/hash-password.mjs '<password>'`. |

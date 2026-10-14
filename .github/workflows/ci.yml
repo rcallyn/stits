@@ -34,5 +34,4 @@ jobs:
           # modules read them at request time, not build time.
           DATABASE_URL: postgres://user:pass@localhost:5432/stits
           SESSION_SECRET: ci-placeholder-secret
-          APP_PASSWORD: ci-placeholder
           ANTHROPIC_API_KEY: sk-ant-ci-placeholder

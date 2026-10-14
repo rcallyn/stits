@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  createSessionCookieValue,
-  verifyPendingCookieValue,
-  PENDING_COOKIE_NAME,
-  SESSION_COOKIE_MAX_AGE_SECONDS,
-  SESSION_COOKIE_NAME,
-  SECURE_COOKIES,
-} from "@/lib/session";
+import { verifyPendingCookieValue, PENDING_COOKIE_NAME } from "@/lib/session";
 import { clientIp, isRateLimited, recordAttempt } from "@/lib/rateLimit";
+import { setSessionCookie } from "@/lib/auth";
+import { sql } from "@/lib/db";
 
 const bodySchema = z.object({ code: z.string().min(1).max(64) });
 
@@ -29,20 +24,21 @@ export async function POST(req: NextRequest) {
   const { code } = body.data;
 
   const pending = req.cookies.get(PENDING_COOKIE_NAME)?.value;
-  const ok = await verifyPendingCookieValue(pending, code);
-  await recordAttempt("2fa", ip, ok);
-  if (!ok) {
+  const userId = await verifyPendingCookieValue(pending, code);
+  if (!userId) {
+    await recordAttempt("2fa", ip);
     return NextResponse.json({ error: "Incorrect or expired code." }, { status: 401 });
+  }
+  // The account could have been removed in the five minutes since step one.
+  const [user] = await sql<{ session_version: number }[]>`
+    select session_version from users where id = ${userId} and status = 'active'
+  `;
+  if (!user) {
+    return NextResponse.json({ error: "This account can't sign in." }, { status: 403 });
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE_NAME, await createSessionCookieValue(), {
-    httpOnly: true,
-    secure: SECURE_COOKIES,
-    sameSite: "lax",
-    maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
-    path: "/",
-  });
+  await setSessionCookie(res, userId, user.session_version);
   res.cookies.delete(PENDING_COOKIE_NAME);
   return res;
 }

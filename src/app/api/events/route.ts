@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { ScheduleEvent } from "@/lib/schedule";
 import { parseBody } from "@/lib/apiValidation";
 import { eventCreateSchema } from "@/lib/schemas";
@@ -38,12 +39,26 @@ function rowToEvent(row: EventRow): ScheduleEvent {
   };
 }
 
-export async function GET() {
-  const rows = await sql<EventRow[]>`select * from schedule_events order by date, time`;
+// A todo link is kept only when that todo belongs to the same user, so an
+// event can't be attached to (and cascade-deleted with) someone else's todo.
+function linkedTodo(todoId: string | undefined, userId: string) {
+  return todoId ? sql`(select id from todos where id = ${todoId} and user_id = ${userId})` : null;
+}
+
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
+  const rows = await sql<EventRow[]>`
+    select * from schedule_events where user_id = ${userId} order by date, time
+  `;
   return NextResponse.json({ events: rows.map(rowToEvent) });
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
   const parsed = await parseBody(req, eventCreateSchema);
   if (!parsed.ok) return parsed.response;
   const {
@@ -62,14 +77,15 @@ export async function POST(req: NextRequest) {
 
   const [row] = await sql<EventRow[]>`
     insert into schedule_events
-      (title, date, end_date, time, end_time, todo_id, category, notes, is_note_event, recurrence, canvas_id)
+      (user_id, title, date, end_date, time, end_time, todo_id, category, notes, is_note_event, recurrence, canvas_id)
     values (
+      ${userId},
       ${title},
       ${date},
       ${endDate ?? null},
       ${time ?? ""},
       ${endTime ?? null},
-      ${todoId ?? null},
+      ${linkedTodo(todoId, userId)},
       ${category ?? null},
       ${notes ? sql.json(notes) : null},
       ${isNoteEvent ?? null},

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { useTodos } from "@/hooks/useTodos";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
@@ -15,14 +14,13 @@ import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
 import { applyBackup, downloadBackup, importLocalStorageBackup, isBackupData } from "@/lib/backup";
 import CanvasSyncPanel from "@/components/CanvasSyncPanel";
+import AccountPanel from "@/components/AccountPanel";
 import DueLaterToggle from "@/components/DueLaterToggle";
-import { pushToast } from "@/lib/toast";
 
 const fieldClass =
   "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
 
 export default function OtherPage() {
-  const router = useRouter();
   const { todos, loaded: todosLoaded, addTodo, toggleTodo, updateTodo, removeTodo } = useTodos();
   const { overrides: categoryColors, setCategoryColor } = useCategoryColors();
   const { labelFor, setCategoryLabel } = useCategoryLabels();
@@ -318,27 +316,7 @@ export default function OtherPage() {
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-5 shadow-[0_2px_16px_rgba(0,0,0,0.08)] dark:bg-[#1c1c1e] dark:shadow-none">
-        <h2 className="text-sm font-semibold">Sessions</h2>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Signs out every device, including this one. Use it if a phone or browser is lost.
-        </p>
-        <button
-          type="button"
-          onClick={async () => {
-            if (!window.confirm("Log out of stits on every device?")) return;
-            const res = await fetch("/api/logout-all", { method: "POST" });
-            if (res.ok) {
-              router.push("/login");
-              router.refresh();
-            }
-            else pushToast("Couldn't log out everywhere. Try again.");
-          }}
-          className="mt-3 rounded-full border border-red-500/60 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/[.06] dark:text-red-400"
-        >
-          Log out everywhere
-        </button>
-      </section>
+      <AccountPanel />
 
       {editingTodo && (
         <TodoEditModal

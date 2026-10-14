@@ -18,6 +18,9 @@ import { runCanvasSync } from "@/lib/canvasSync";
 // the one that actually lands on 7am ET do anything.
 const TARGET_HOUR_ET = 7;
 
+// Every user's Canvas sync and digest share one invocation.
+export const maxDuration = 60;
+
 type EventRow = {
   id: string;
   title: string;
@@ -51,27 +54,12 @@ function currentEasternHourAndDate(): { hour: number; isoDate: string } {
   return { hour, isoDate: `${get("year")}-${get("month")}-${get("day")}` };
 }
 
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { hour, isoDate: today } = currentEasternHourAndDate();
-  if (hour !== TARGET_HOUR_ET) {
-    return NextResponse.json({ skipped: true, reason: `hour ${hour} != ${TARGET_HOUR_ET}` });
-  }
-
-  // Pull in new Canvas assignments first so today's digest includes them. A
-  // feed problem shouldn't cost the digest, so a failure is only logged.
-  try {
-    await runCanvasSync();
-  } catch (err) {
-    console.error("Daily Canvas sync failed:", err);
-  }
-
+// One user's digest: today's events (recurrences expanded) and todos due
+// today or overdue, under a quote of the day.
+async function buildDigest(userId: string, today: string) {
   const eventRows = await sql<EventRow[]>`
     select id, title, date, end_date, time, end_time, category, recurrence from schedule_events
+    where user_id = ${userId}
   `;
   const events: ScheduleEvent[] = eventRows.map((row) => ({
     id: row.id,
@@ -88,7 +76,8 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
 
   const todoRows = await sql<TodoRow[]>`
-    select id, title, done, due_date from todos where done = false and due_date is not null
+    select id, title, done, due_date from todos
+    where user_id = ${userId} and done = false and due_date is not null
   `;
   const todos: Todo[] = todoRows.map((row) => ({
     id: row.id,
@@ -121,12 +110,60 @@ export async function GET(req: NextRequest) {
     if (dueTodos.length > 8) lines.push(`+${dueTodos.length - 8} more`);
   }
 
+  return lines.join("\n");
+}
+
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { hour, isoDate: today } = currentEasternHourAndDate();
+  if (hour !== TARGET_HOUR_ET) {
+    return NextResponse.json({ skipped: true, reason: `hour ${hour} != ${TARGET_HOUR_ET}` });
+  }
+
+  const users = await sql<{ id: string; pushover_user_key: string | null; canvas_feed_url: string | null }[]>`
+    select u.id, u.pushover_user_key, s.canvas_feed_url
+    from users u left join settings s on s.user_id = u.id
+    where u.status = 'active'
+  `;
+
   const dayLabel = new Date(`${today}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
 
-  const sent = await sendPushoverNotification(lines.join("\n"), `stits — ${dayLabel}`);
-  return NextResponse.json({ sent, today, eventCount: todayEvents.length, todoCount: dueTodos.length });
+  // Pull in new Canvas assignments first so today's digests include them.
+  // The feeds are fetched concurrently so one slow feed can't use up the
+  // whole invocation, and a feed problem shouldn't cost anyone's digest, so
+  // a failure is only logged.
+  await Promise.all(
+    users
+      .filter((u) => u.canvas_feed_url)
+      .map((u) =>
+        runCanvasSync(u.id).catch((err) => {
+          console.error(`Daily Canvas sync failed for user ${u.id}:`, err);
+        })
+      )
+  );
+
+  let sent = 0;
+  let failed = 0;
+  for (const user of users) {
+    if (!user.pushover_user_key) continue;
+    try {
+      const message = await buildDigest(user.id, today);
+      const ok = await sendPushoverNotification(user.pushover_user_key, message, `stits — ${dayLabel}`);
+      if (ok) sent++;
+      else failed++;
+    } catch (err) {
+      failed++;
+      console.error(`Daily digest failed for user ${user.id}:`, err);
+    }
+  }
+
+  return NextResponse.json({ today, users: users.length, sent, failed });
 }

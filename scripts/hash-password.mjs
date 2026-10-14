@@ -1,7 +1,8 @@
-// Usage: node scripts/hash-password.mjs 'your app password'
+// Usage: node scripts/hash-password.mjs 'your password'
 //
-// Prints an APP_PASSWORD_HASH=... line to paste into your Vercel project env
-// (or .env.local). Once set, APP_PASSWORD can be removed.
+// Prints an APP_PASSWORD_HASH=... line for .env.local, which
+// scripts/migrate-multi-user.mjs uses as the first admin's password so the
+// plaintext never has to be stored anywhere.
 
 import { randomBytes, scryptSync } from "node:crypto";
 

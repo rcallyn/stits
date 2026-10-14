@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSessionRevoked, readSessionIssuedAt, SESSION_COOKIE_NAME } from "@/lib/session";
-import { getSessionsValidAfter } from "@/lib/sessionRevocation";
+import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
 
 const PUBLIC_PATHS = new Set([
   "/login",
+  "/signup",
   "/offline",
   "/api/login",
   "/api/verify-2fa",
+  "/api/signup",
   // Invoked by Vercel Cron, which can't carry the session cookie — the route
   // itself checks the Authorization: Bearer <CRON_SECRET> header Vercel adds
   // automatically, so this doesn't weaken the app's actual auth.
@@ -64,12 +65,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const issuedAt = await readSessionIssuedAt(cookie);
-  if (issuedAt !== null) {
-    // Fails closed: if the revocation cutoff can't be read, the request is
-    // treated as unauthenticated rather than letting a revoked cookie through.
-    const validAfter = await getSessionsValidAfter().catch(() => Infinity);
-    if (!isSessionRevoked(issuedAt, validAfter)) return pass();
+  if (await isValidSessionCookie(cookie)) {
+    return pass();
   }
 
   // API calls get a 401 they can handle in place; page navigations redirect

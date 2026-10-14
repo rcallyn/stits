@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sql } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { parseBody } from "@/lib/apiValidation";
 import { todoPatchSchema } from "@/lib/schemas";
 
 const idSchema = z.uuid();
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
   const { id } = await params;
   if (!idSchema.safeParse(id).success) {
     return NextResponse.json({ error: "Invalid todo id." }, { status: 400 });
@@ -32,11 +36,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "No changes." }, { status: 400 });
   }
 
-  await sql`update todos set ${sql(fields)} where id = ${id}`;
+  await sql`update todos set ${sql(fields)} where id = ${id} and user_id = ${userId}`;
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
   const { id } = await params;
   if (!idSchema.safeParse(id).success) {
     return NextResponse.json({ error: "Invalid todo id." }, { status: 400 });
@@ -44,9 +51,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   // Deleting a Canvas-synced todo is remembered so the next sync doesn't
   // re-add it (see lib/canvasSync.ts).
   await sql`
-    with deleted as (delete from todos where id = ${id} returning canvas_id)
-    insert into canvas_dismissed (canvas_id, scope)
-    select canvas_id, 'todo' from deleted where canvas_id is not null
+    with deleted as (delete from todos where id = ${id} and user_id = ${userId} returning canvas_id)
+    insert into canvas_dismissed (user_id, canvas_id, scope)
+    select ${userId}, canvas_id, 'todo' from deleted where canvas_id is not null
     on conflict do nothing
   `;
   return NextResponse.json({ ok: true });

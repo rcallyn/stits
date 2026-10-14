@@ -202,16 +202,19 @@ async function fetchAssignments(feedUrl: string): Promise<CanvasAssignment[]> {
 }
 
 /**
- * Syncs from the saved feed URL (after saving `feedUrl` first, if given).
- * Returns null when no feed URL is configured.
+ * Syncs `userId`'s todos from their saved feed URL (after saving `feedUrl`
+ * first, if given). Returns null when no feed URL is configured.
  */
-export async function runCanvasSync(feedUrl?: string): Promise<CanvasSyncResult | null> {
+export async function runCanvasSync(userId: string, feedUrl?: string): Promise<CanvasSyncResult | null> {
   if (feedUrl !== undefined) {
     checkFeedUrl(feedUrl);
-    await sql`update settings set canvas_feed_url = ${feedUrl.trim()} where id = 1`;
+    await sql`
+      insert into settings (user_id, canvas_feed_url) values (${userId}, ${feedUrl.trim()})
+      on conflict (user_id) do update set canvas_feed_url = excluded.canvas_feed_url
+    `;
   }
   const [settings] = await sql<{ canvas_feed_url: string | null }[]>`
-    select canvas_feed_url from settings where id = 1
+    select canvas_feed_url from settings where user_id = ${userId}
   `;
   const savedUrl = settings?.canvas_feed_url?.trim();
   if (!savedUrl) return null;
@@ -220,15 +223,15 @@ export async function runCanvasSync(feedUrl?: string): Promise<CanvasSyncResult 
 
   const todos = await sql<SyncedTodo[]>`
     select id, canvas_id as "canvasId", title, due_date as "dueDate", done
-    from todos where canvas_id is not null
+    from todos where user_id = ${userId} and canvas_id is not null
   `;
   const events = await sql<LinkedEvent[]>`
     select e.id, e.todo_id as "todoId", e.canvas_id as "canvasId", e.title, e.date
     from schedule_events e join todos t on t.id = e.todo_id
-    where t.canvas_id is not null
+    where t.user_id = ${userId} and t.canvas_id is not null
   `;
   const dismissed = await sql<{ canvas_id: string; scope: string }[]>`
-    select canvas_id, scope from canvas_dismissed
+    select canvas_id, scope from canvas_dismissed where user_id = ${userId}
   `;
   const dismissedTodos = new Set(dismissed.filter((d) => d.scope === "todo").map((d) => d.canvas_id));
   const dismissedEvents = new Set(dismissed.filter((d) => d.scope === "event").map((d) => d.canvas_id));
@@ -245,35 +248,35 @@ export async function runCanvasSync(feedUrl?: string): Promise<CanvasSyncResult 
   await sql.begin(async (tx) => {
     for (const a of plan.createTodos) {
       const [row] = await tx<{ id: string }[]>`
-        insert into todos (title, due_date, category, canvas_id)
-        values (${a.title}, ${a.dueDate}, 'school', ${a.canvasId})
+        insert into todos (user_id, title, due_date, category, canvas_id)
+        values (${userId}, ${a.title}, ${a.dueDate}, 'school', ${a.canvasId})
         returning id
       `;
       if (!dismissedEvents.has(a.canvasId)) {
         await tx`
-          insert into schedule_events (title, date, time, todo_id, category, canvas_id)
-          values (${a.title}, ${a.dueDate}, '', ${row.id}, 'school', ${a.canvasId})
+          insert into schedule_events (user_id, title, date, time, todo_id, category, canvas_id)
+          values (${userId}, ${a.title}, ${a.dueDate}, '', ${row.id}, 'school', ${a.canvasId})
         `;
       }
     }
     for (const u of plan.updateTodos) {
-      await tx`update todos set title = ${u.title}, due_date = ${u.dueDate} where id = ${u.id}`;
+      await tx`update todos set title = ${u.title}, due_date = ${u.dueDate} where id = ${u.id} and user_id = ${userId}`;
     }
     for (const e of plan.createEvents) {
       await tx`
-        insert into schedule_events (title, date, time, todo_id, category, canvas_id)
-        values (${e.title}, ${e.date}, '', ${e.todoId}, 'school', ${e.canvasId})
+        insert into schedule_events (user_id, title, date, time, todo_id, category, canvas_id)
+        values (${userId}, ${e.title}, ${e.date}, '', ${e.todoId}, 'school', ${e.canvasId})
       `;
     }
     for (const u of plan.updateEvents) {
-      await tx`update schedule_events set title = ${u.title}, date = ${u.date} where id = ${u.id}`;
+      await tx`update schedule_events set title = ${u.title}, date = ${u.date} where id = ${u.id} and user_id = ${userId}`;
     }
     // Linked calendar entries go too, via the todo_id cascade. Not recorded
     // as dismissed: if Canvas brings it back, it's genuinely new again.
     if (plan.deleteTodoIds.length > 0) {
-      await tx`delete from todos where id in ${tx(plan.deleteTodoIds)}`;
+      await tx`delete from todos where user_id = ${userId} and id in ${tx(plan.deleteTodoIds)}`;
     }
-    await tx`update settings set canvas_last_synced_at = now() where id = 1`;
+    await tx`update settings set canvas_last_synced_at = now() where user_id = ${userId}`;
   });
 
   return {

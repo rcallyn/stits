@@ -151,3 +151,33 @@ export const backupImportSchema = z.object({
   replace: z.boolean().optional(),
   confirm: z.string().optional(),
 });
+
+/* ------------------------------ accounts ----------------------------- */
+
+const password = z.string().min(8).max(1024);
+
+export const signupSchema = z.object({
+  email: z.email().max(320),
+  password,
+});
+
+// Pushover user keys are 30 alphanumeric characters; null turns push
+// notifications (2FA and the digest) off. Changing the 2FA destination needs
+// the current password.
+export const accountPatchSchema = z.object({
+  currentPassword: z.string().min(1).max(1024),
+  pushoverUserKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{30}$/, "expected a 30-character Pushover user key")
+    .nullable(),
+});
+
+export const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1).max(1024),
+  newPassword: password,
+});
+
+export const adminUserPatchSchema = z.object({
+  status: z.literal("active"),
+});

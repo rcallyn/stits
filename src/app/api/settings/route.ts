@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { Category } from "@/lib/categories";
 import { parseBody } from "@/lib/apiValidation";
 import { settingsPatchSchema } from "@/lib/schemas";
@@ -30,12 +31,23 @@ function rowToSettings(row: SettingsRow): SettingsPayload {
   };
 }
 
-export async function GET() {
-  const [row] = await sql<SettingsRow[]>`select * from settings where id = 1`;
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
+  // Signup creates the row; the upsert covers accounts made some other way.
+  const [row] = await sql<SettingsRow[]>`
+    insert into settings (user_id) values (${userId})
+    on conflict (user_id) do update set user_id = excluded.user_id
+    returning *
+  `;
   return NextResponse.json(rowToSettings(row));
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
   const parsed = await parseBody(req, settingsPatchSchema);
   if (!parsed.ok) return parsed.response;
   const changes = parsed.data;
@@ -54,7 +66,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   const [row] = await sql<SettingsRow[]>`
-    update settings set ${sql(fields)} where id = 1 returning *
+    insert into settings ${sql({ user_id: userId, ...fields })}
+    on conflict (user_id) do update set ${sql(fields)}
+    returning *
   `;
   return NextResponse.json(rowToSettings(row));
 }

@@ -1,4 +1,5 @@
-// Signed-cookie helpers for the password + Pushover-push login flow. Uses Web
+// Signed-cookie helpers for the email/password (+ optional Pushover push)
+// login flow. Uses Web
 // Crypto (`crypto.subtle`) rather than Node's `crypto` module so the exact
 // same code works in both middleware (Edge runtime) and API routes (Node
 // runtime) without a runtime mismatch.
@@ -17,7 +18,13 @@ export const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400;
 // once this is actually deployed behind HTTPS.
 export const SECURE_COOKIES = process.env.NODE_ENV === "production";
 
-const SESSION_PAYLOAD = "authenticated";
+// Session payloads are `user:<uuid>:<session version>`. The proxy only
+// checks the signature (it runs without a database); API routes re-check
+// that the user is still active and that the version still matches
+// `users.session_version` (lib/auth.ts). Removing a user, or bumping their
+// version on a password change, therefore revokes every existing session.
+const SESSION_RE =
+  /^user:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(\d{1,9})$/i;
 const PENDING_TTL_MS = 5 * 60 * 1000;
 
 const encoder = new TextEncoder();
@@ -86,33 +93,60 @@ async function verify(token: string, secret: string): Promise<string | null> {
   return valid ? payload : null;
 }
 
-export async function createSessionCookieValue(): Promise<string> {
-  return sign(SESSION_PAYLOAD, requireSecret());
+export type SessionClaims = { userId: string; version: number };
+
+export async function createSessionCookieValue(userId: string, version: number): Promise<string> {
+  return sign(`user:${userId}:${version}`, requireSecret());
+}
+
+/** The signed-in user's id and session version, or null if the cookie is missing or forged. */
+export async function getSessionClaims(value: string | undefined): Promise<SessionClaims | null> {
+  if (!value) return null;
+  const payload = await verify(value, requireSecret());
+  const match = payload ? SESSION_RE.exec(payload) : null;
+  return match ? { userId: match[1], version: Number(match[2]) } : null;
 }
 
 export async function isValidSessionCookie(value: string | undefined): Promise<boolean> {
-  if (!value) return false;
-  const payload = await verify(value, requireSecret());
-  return payload === SESSION_PAYLOAD;
+  return (await getSessionClaims(value)) !== null;
 }
 
-export async function createPendingCookieValue(code: string): Promise<string> {
-  const payload = JSON.stringify({ code, expiresAt: Date.now() + PENDING_TTL_MS });
+// The pending cookie goes to the same client that just entered the
+// password, so it must not reveal the code: it's signed, not encrypted. It
+// carries only an HMAC of the code, which can't be brute-forced offline
+// without SESSION_SECRET.
+async function codeTag(userId: string, code: string, expiresAt: number): Promise<string> {
+  const key = await getKey(requireSecret());
+  const tag = await crypto.subtle.sign("HMAC", key, encoder.encode(`2fa:${userId}:${expiresAt}:${code}`));
+  return bytesToHex(tag);
+}
+
+export async function createPendingCookieValue(userId: string, code: string): Promise<string> {
+  const expiresAt = Date.now() + PENDING_TTL_MS;
+  const payload = JSON.stringify({ userId, tag: await codeTag(userId, code, expiresAt), expiresAt });
   return sign(payload, requireSecret());
 }
 
+/** The user id the pending 2FA cookie was issued for, if `submittedCode` matches and hasn't expired. */
 export async function verifyPendingCookieValue(
   value: string | undefined,
   submittedCode: string
-): Promise<boolean> {
-  if (!value) return false;
+): Promise<string | null> {
+  if (!value) return null;
   const payload = await verify(value, requireSecret());
-  if (!payload) return false;
+  if (!payload) return null;
   try {
-    const { code, expiresAt } = JSON.parse(payload) as { code: string; expiresAt: number };
-    if (typeof code !== "string" || typeof expiresAt !== "number") return false;
-    return timingSafeEqual(code, submittedCode) && Date.now() < expiresAt;
+    const { userId, tag, expiresAt } = JSON.parse(payload) as {
+      userId: unknown;
+      tag: unknown;
+      expiresAt: unknown;
+    };
+    if (typeof userId !== "string" || typeof tag !== "string" || typeof expiresAt !== "number") {
+      return null;
+    }
+    if (Date.now() >= expiresAt) return null;
+    return timingSafeEqual(tag, await codeTag(userId, submittedCode, expiresAt)) ? userId : null;
   } catch {
-    return false;
+    return null;
   }
 }

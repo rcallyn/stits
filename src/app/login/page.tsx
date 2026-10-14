@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 const fieldClass =
@@ -10,6 +11,7 @@ const buttonClass =
 
 export default function LoginPage() {
   const [stage, setStage] = useState<"password" | "code">("password");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -23,14 +25,19 @@ export default function LoginPage() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Incorrect password.");
+        setError(data.error ?? "Incorrect email or password.");
         return;
       }
-      setStage("code");
+      if (data.twoFactor) {
+        setStage("code");
+        return;
+      }
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/";
     } catch {
       setError("Couldn't reach the server.");
     } finally {
@@ -74,7 +81,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold tracking-tight">stits</h1>
         <p className="mt-1 text-zinc-500 dark:text-zinc-400">
           {stage === "password"
-            ? "Enter your password to continue."
+            ? "Sign in to continue."
             : "Check your phone for a 6-digit code."}
         </p>
       </div>
@@ -82,8 +89,18 @@ export default function LoginPage() {
       {stage === "password" ? (
         <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-3">
           <input
-            type="password"
+            type="email"
             autoFocus
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            required
+            className={fieldClass}
+          />
+          <input
+            type="password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
@@ -91,7 +108,7 @@ export default function LoginPage() {
             className={fieldClass}
           />
           <button type="submit" disabled={loading} className={buttonClass}>
-            {loading ? "Checking…" : "Continue"}
+            {loading ? "Checking…" : "Sign in"}
           </button>
         </form>
       ) : (
@@ -113,6 +130,15 @@ export default function LoginPage() {
       )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {stage === "password" && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          New here?{" "}
+          <Link href="/signup" className="text-[#0071e3] hover:underline dark:text-[#2997ff]">
+            Request an account
+          </Link>
+        </p>
+      )}
     </main>
   );
 }

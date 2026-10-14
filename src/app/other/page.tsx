@@ -14,6 +14,7 @@ import { DEFAULT_CATEGORY_COLOR_KEY, resolveColor } from "@/lib/itemColor";
 import { CATEGORY_DRAG_TYPE } from "@/lib/dnd";
 import { applyBackup, downloadBackup, importLocalStorageBackup, isBackupData } from "@/lib/backup";
 import CanvasSyncPanel from "@/components/CanvasSyncPanel";
+import AccountPanel from "@/components/AccountPanel";
 import DueLaterToggle from "@/components/DueLaterToggle";
 
 const fieldClass =
@@ -314,6 +315,8 @@ export default function OtherPage() {
           </button>
         </div>
       </section>
+
+      <AccountPanel />
 
       {editingTodo && (
         <TodoEditModal

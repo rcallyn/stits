@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ThemePreference, useTheme } from "@/hooks/useTheme";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
 import TabBarIcon, { TabIconName } from "@/components/TabBarIcon";
@@ -22,14 +22,16 @@ const THEME_ICON: Record<ThemePreference, string> = { system: "🖥️", light: 
 
 export default function Nav() {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { setOpen: setSearchOpen } = useSearchPalette();
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    // A full page load, not router.push, so the in-memory todo/event stores
+    // are dropped and the next person to sign in on this device can't see
+    // this account's data.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/login";
   }
 
   return (

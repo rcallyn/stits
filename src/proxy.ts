@@ -3,9 +3,11 @@ import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
 
 const PUBLIC_PATHS = new Set([
   "/login",
+  "/signup",
   "/offline",
   "/api/login",
   "/api/verify-2fa",
+  "/api/signup",
   // Invoked by Vercel Cron, which can't carry the session cookie — the route
   // itself checks the Authorization: Bearer <CRON_SECRET> header Vercel adds
   // automatically, so this doesn't weaken the app's actual auth.

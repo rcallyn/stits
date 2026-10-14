@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { Todo } from "@/lib/todos";
 import { parseBody } from "@/lib/apiValidation";
 import { todoCreateSchema } from "@/lib/schemas";
@@ -32,19 +33,28 @@ function rowToTodo(row: TodoRow): Todo {
   };
 }
 
-export async function GET() {
-  const rows = await sql<TodoRow[]>`select * from todos order by due_date nulls last, title`;
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
+  const rows = await sql<TodoRow[]>`
+    select * from todos where user_id = ${userId} order by due_date nulls last, title
+  `;
   return NextResponse.json({ todos: rows.map(rowToTodo) });
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
   const parsed = await parseBody(req, todoCreateSchema);
   if (!parsed.ok) return parsed.response;
   const { title, description, dueDate, category, priority, subtasks, canvasId } = parsed.data;
 
   const [row] = await sql<TodoRow[]>`
-    insert into todos (title, description, due_date, category, priority, subtasks, canvas_id)
+    insert into todos (user_id, title, description, due_date, category, priority, subtasks, canvas_id)
     values (
+      ${userId},
       ${title},
       ${description ?? null},
       ${dueDate ?? null},

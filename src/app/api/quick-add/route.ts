@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { parsedItemOutputFormat } from "@/lib/quickAdd";
+import { requireUser } from "@/lib/auth";
 import { parseBody } from "@/lib/apiValidation";
 import { quickAddRequestSchema } from "@/lib/schemas";
 
 const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
   const parsed = await parseBody(req, quickAddRequestSchema);
   if (!parsed.ok) return parsed.response;
   const { text, now, history } = parsed.data;

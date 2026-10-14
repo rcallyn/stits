@@ -6,8 +6,8 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 ![Postgres](https://img.shields.io/badge/Postgres-Supabase-336791)
 
-A full-stack calendar and todo app I use every day. It puts my week and my
-task list on one dashboard, adds items from plain English ("dentist tomorrow
+A full-stack, multi-user calendar and todo app I use every day. It puts my
+week and my task list on one dashboard, adds items from plain English ("dentist tomorrow
 at 3pm"), pulls my school deadlines from Canvas, and sends a push
 notification each morning with the day's plan.
 
@@ -50,6 +50,9 @@ Over about three months that came to ~8,000 lines of TypeScript in more than
 - **Search palette** across all todos and events, with jump-to-date.
 - **Installable PWA** on iOS and desktop, with light, dark and
   follow-the-system themes.
+- **Accounts.** Anyone can request an account at `/signup`; an admin
+  approves or rejects each request in the app. Every user's todos, events,
+  settings and Canvas feed are their own.
 - **Backup export and import** as a JSON file.
 
 ## Tech stack
@@ -61,18 +64,27 @@ Over about three months that came to ~8,000 lines of TypeScript in more than
 | Database   | PostgreSQL (Supabase) through `postgres.js` with a pooled connection |
 | AI         | Anthropic Claude API with structured output for quick add |
 | Validation | Zod schemas on every API request body |
-| Auth       | scrypt password hashing, HMAC-signed cookies, push-notification 2FA |
+| Auth       | Email + password accounts with admin approval, scrypt hashing, HMAC-signed cookies, optional push-notification 2FA |
 | Jobs       | Vercel Cron for the daily digest and Canvas sync |
-| Testing/CI | Vitest (77 unit tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
+| Testing/CI | Vitest (82 unit tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
 
 ## Engineering highlights
 
 **Security.** The app holds personal data and is on the public internet, so
 I treated it like a production service:
 
+- **Per-user data isolation:** every row carries a `user_id`, and every
+  route checks the session against the `users` table and scopes its queries
+  to that user, so a removed account is locked out at once even with a
+  validly signed cookie.
+- **Approval-gated signup:** new accounts can't sign in until an admin
+  approves them, which also keeps strangers off the paid Claude API. Signup
+  replies the same way for new and existing emails, and login does equal
+  scrypt work for unknown emails, so neither reveals who has an account.
 - **Two-step login:** a password checked against a salted scrypt hash in
-  constant time, then a one-time code sent by push notification.
-- **Brute-force limits** on both login steps, stored in Postgres so they hold
+  constant time, then (for users who've added a Pushover key) a one-time
+  code sent by push notification.
+- **Brute-force limits** on both login steps and on signup, stored in Postgres so they hold
   across serverless cold starts. They're keyed on a client IP that can't be
   spoofed through `X-Forwarded-For`.
 - **Strict Content Security Policy** with a fresh nonce on every request (no
@@ -113,13 +125,14 @@ Browser (React 19, PWA)
   │  optimistic entity stores → fetch /api/*
   ▼
 Next.js on Vercel
-  ├─ proxy.ts         session check + per-request CSP nonce
-  ├─ /api/*           Zod-validated route handlers
+  ├─ proxy.ts         session signature check + per-request CSP nonce
+  ├─ /api/*           Zod-validated, user-scoped route handlers
+  ├─ /api/signup      pending accounts, approved under Other → Users
   ├─ /api/quick-add   → Claude API (structured output)
   └─ /api/cron/*      daily digest + Canvas sync (Vercel Cron)
         │                    │
         ▼                    ▼
-  Postgres (Supabase)   Pushover (2FA codes, digest)
+  Postgres (Supabase)   Pushover (2FA codes, digest, signup alerts)
   RLS on, no public grants
 ```
 
@@ -140,8 +153,25 @@ npm install
 cp .env.example .env.local          # then fill in the values below
 # create the schema once against your database:
 psql "$DATABASE_URL" -f schema.sql
+# create your admin account from OWNER_EMAIL + APP_PASSWORD_HASH:
+node --env-file=.env.local scripts/migrate-multi-user.mjs
 npm run dev
 ```
+
+### Upgrading a single-user database
+
+Earlier versions had one shared password and no accounts. Set
+`OWNER_EMAIL` in `.env.local` alongside your existing `APP_PASSWORD_HASH`
+and `PUSHOVER_USER_KEY`, then run the same script against the database:
+
+```bash
+node --env-file=.env.local scripts/migrate-multi-user.mjs
+```
+
+It creates your account as an admin, assigns all existing data to it, and
+is safe to re-run. The old code can't read the migrated database and the
+new code can't read the old one, so run the script and deploy back to back.
+Everyone is signed out once and signs back in with email and password.
 
 ### Environment variables
 
@@ -149,14 +179,15 @@ npm run dev
 | --------------------- | -------- | --------------------------------------------------- |
 | `DATABASE_URL`        | yes      | Your Postgres connection string.                     |
 | `SESSION_SECRET`      | yes      | Any random string; keeps login sessions secure.      |
-| `APP_PASSWORD`        | \*       | The login password.                                  |
-| `APP_PASSWORD_HASH`   | \*       | A hashed version of the password. Use this instead of `APP_PASSWORD` in production. Generate one with `node scripts/hash-password.mjs '<password>'`. |
+| `OWNER_EMAIL`         | setup    | The first admin's email, read only by `scripts/migrate-multi-user.mjs`. |
+| `APP_PASSWORD_HASH`   | setup    | The first admin's password hash, read only by the migration script. Generate one with `node scripts/hash-password.mjs '<password>'`. |
 | `ANTHROPIC_API_KEY`   | yes      | Powers the natural-language quick add.               |
-| `PUSHOVER_APP_TOKEN`  | yes      | Sends the login code and the daily digest.           |
-| `PUSHOVER_USER_KEY`   | yes      | Recipient of the login code and the daily digest.    |
+| `PUSHOVER_APP_TOKEN`  | yes      | Sends login codes, the daily digest and signup alerts. Each user adds their own Pushover user key in the app. |
+| `PUSHOVER_USER_KEY`   | setup    | The first admin's Pushover user key, read only by the migration script. |
 | `CRON_SECRET`         | no       | Only needed if you want the daily digest to run.     |
 
-\* Set at least one of `APP_PASSWORD` / `APP_PASSWORD_HASH`.
+"setup" variables are only needed in `.env.local` when you run the
+migration script, not in the deployed app.
 
 ### Useful commands
 

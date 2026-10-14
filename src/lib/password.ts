@@ -1,16 +1,12 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
-// App-login password verification.
-//
-// Preferred: set APP_PASSWORD_HASH to a scrypt digest produced by
-// `node scripts/hash-password.mjs '<password>'`. The plaintext never lives in
-// the environment.
-//
-// Fallback: if APP_PASSWORD_HASH is unset, APP_PASSWORD (plaintext) is still
-// accepted so existing deployments keep working until they migrate.
+// Account password hashing. Each user's password is stored as a salted
+// scrypt digest in `users.password_hash`; the plaintext is never stored.
 
 const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
 const KEY_LEN = 64;
+
+export const MIN_PASSWORD_LENGTH = 8;
 
 export function hashPassword(password: string, salt = randomBytes(16)): string {
   const derived = scryptSync(password, salt, KEY_LEN, SCRYPT_PARAMS);
@@ -19,7 +15,7 @@ export function hashPassword(password: string, salt = randomBytes(16)): string {
   )}$${derived.toString("hex")}`;
 }
 
-function verifyAgainstHash(candidate: string, stored: string): boolean {
+export function verifyPassword(candidate: string, stored: string): boolean {
   const parts = stored.split("$");
   if (parts.length !== 6 || parts[0] !== "scrypt") return false;
   const [, nStr, rStr, pStr, saltHex, hashHex] = parts;
@@ -38,18 +34,12 @@ function verifyAgainstHash(candidate: string, stored: string): boolean {
   return expected.length === derived.length && timingSafeEqual(expected, derived);
 }
 
-function verifyPlaintext(candidate: string, expected: string): boolean {
-  const a = Buffer.from(candidate);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) {
-    timingSafeEqual(b, b); // keep the timing profile close to the equal-length path
-    return false;
-  }
-  return timingSafeEqual(a, b);
-}
+// Checked against when the email isn't registered, so a login attempt for an
+// unknown email costs the same scrypt work as one for a real account and
+// response timing doesn't reveal which emails exist.
+const DUMMY_HASH = hashPassword("stits-dummy-password");
 
-export function verifyAppPassword(candidate: string): boolean {
-  const hash = process.env.APP_PASSWORD_HASH;
-  if (hash) return verifyAgainstHash(candidate, hash);
-  return verifyPlaintext(candidate, process.env.APP_PASSWORD ?? "");
+export function verifyPasswordOrDummy(candidate: string, stored: string | undefined): boolean {
+  const ok = verifyPassword(candidate, stored ?? DUMMY_HASH);
+  return stored !== undefined && ok;
 }

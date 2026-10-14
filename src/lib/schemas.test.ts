@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountPatchSchema,
   canvasSyncRequestSchema,
+  signupSchema,
   eventCreateSchema,
   eventPatchSchema,
   settingsPatchSchema,
@@ -76,5 +78,28 @@ describe("misc endpoint schemas", () => {
       true
     );
     expect(canvasSyncRequestSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("signupSchema", () => {
+  it("requires a valid email and an 8+ character password", () => {
+    expect(signupSchema.safeParse({ email: "a@b.co", password: "12345678" }).success).toBe(true);
+    expect(signupSchema.safeParse({ email: "not-an-email", password: "12345678" }).success).toBe(false);
+    expect(signupSchema.safeParse({ email: "a@b.co", password: "1234567" }).success).toBe(false);
+  });
+});
+
+describe("accountPatchSchema", () => {
+  it("needs the current password, and accepts a 30-character Pushover key or null", () => {
+    const key = "u".repeat(15) + "1".repeat(15);
+    const currentPassword = "pw";
+    expect(accountPatchSchema.parse({ currentPassword, pushoverUserKey: ` ${key} ` })).toEqual({
+      currentPassword,
+      pushoverUserKey: key,
+    });
+    expect(accountPatchSchema.safeParse({ currentPassword, pushoverUserKey: null }).success).toBe(true);
+    expect(accountPatchSchema.safeParse({ currentPassword, pushoverUserKey: "short" }).success).toBe(false);
+    expect(accountPatchSchema.safeParse({ currentPassword, pushoverUserKey: key + "!" }).success).toBe(false);
+    expect(accountPatchSchema.safeParse({ pushoverUserKey: key }).success).toBe(false);
   });
 });

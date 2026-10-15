@@ -16,5 +16,5 @@ export const CATEGORIES: Record<Category, CategoryMeta> = {
 export const CATEGORY_LIST = Object.entries(CATEGORIES) as [Category, CategoryMeta][];
 
 export function isCategory(value: string): value is Category {
-  return value in CATEGORIES;
+  return Object.hasOwn(CATEGORIES, value);
 }

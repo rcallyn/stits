@@ -48,6 +48,9 @@ Over about three months that came to ~9,400 lines of TypeScript in more than
   updates changed items, and remembers deletions so they don't come back.
 - **7am daily digest.** A push notification with today's schedule, what's
   due, and a quote, for every user who has added a Pushover key.
+- **6pm "what's left today" recap.** A second push with the rest of today's
+  events, todos still due or overdue, and the first thing tomorrow. It
+  stays silent when nothing is left.
 - **Search palette** across all todos and events, with jump-to-date.
 - **Installable PWA** on iOS and desktop, with light, dark and
   follow-the-system themes.

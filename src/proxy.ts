@@ -12,6 +12,7 @@ const PUBLIC_PATHS = new Set([
   // itself checks the Authorization: Bearer <CRON_SECRET> header Vercel adds
   // automatically, so this doesn't weaken the app's actual auth.
   "/api/cron/daily-digest",
+  "/api/cron/evening-recap",
 ]);
 // The service worker must be fetchable without a session (see the matcher
 // below, which also excludes it).

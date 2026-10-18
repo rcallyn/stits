@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AccountPayload } from "@/app/api/account/route";
 import UsersPanel from "@/components/UsersPanel";
+import { clearAllOfflineCopies } from "@/lib/offlineCache";
 
 const fieldClass =
   "rounded-[10px] border border-black/[.06] bg-black/[.025] px-3 py-2 text-sm outline-none transition-colors focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 dark:border-white/[.08] dark:bg-white/[.05] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20";
@@ -124,6 +125,7 @@ export default function AccountPanel() {
         setSessionsStatus({ kind: "error", text: "Couldn't log out everywhere. Try again." });
         return;
       }
+      clearAllOfflineCopies();
       router.push("/login");
       router.refresh();
     } catch {

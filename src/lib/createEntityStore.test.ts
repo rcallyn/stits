@@ -138,3 +138,61 @@ describe("createEntityStore.ensureHydrated", () => {
     vi.useRealTimers();
   });
 });
+
+describe("createEntityStore offline copy", () => {
+  function memoryStorage(): Storage {
+    const m = new Map<string, string>();
+    return {
+      get length() {
+        return m.size;
+      },
+      key: (i: number) => [...m.keys()][i] ?? null,
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+      clear: () => m.clear(),
+    };
+  }
+
+  function offlineStore(fetchImpl: typeof fetch) {
+    vi.stubGlobal("fetch", fetchImpl);
+    vi.stubGlobal("window", { addEventListener: () => {}, setTimeout });
+    vi.stubGlobal("document", { addEventListener: () => {}, visibilityState: "visible" });
+    return createEntityStore<Row>({
+      endpoint: "/api/rows",
+      fromResponse: (data) => (data as { rows: Row[] }).rows,
+      noun: "row",
+      offlineKey: "rows",
+    });
+  }
+
+  it("saves on success and falls back to it when every load attempt fails", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("localStorage", memoryStorage());
+    let online = true;
+    const fetchMock = vi.fn(async () => {
+      if (!online) throw new TypeError("offline");
+      return new Response(JSON.stringify({ rows: [{ id: "a", v: 1 }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await offlineStore(fetchMock).refresh(); // an earlier visit
+
+    online = false;
+    const fresh = offlineStore(fetchMock); // new page load, no network
+    const before = getToasts().length;
+    fresh.ensureHydrated();
+    await vi.advanceTimersByTimeAsync(13_000);
+    expect(fresh.getHydratedSnapshot()).toBe(true);
+    expect(fresh.getAll()).toEqual([{ id: "a", v: 1 }]);
+    expect(getToasts().slice(before)[0].message).toMatch(/offline — showing your rows/i);
+    vi.useRealTimers();
+  });
+
+  it("drops the saved copy when the session is rejected", async () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    localStorage.setItem("stits:offline:rows", JSON.stringify({ v: 1, savedAt: 1, items: [{ id: "x", v: 1 }] }));
+    const store = offlineStore((async () => new Response("", { status: 401 })) as unknown as typeof fetch);
+    await store.refresh();
+    expect(localStorage.getItem("stits:offline:rows")).toBeNull();
+  });
+});

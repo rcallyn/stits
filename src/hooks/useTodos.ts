@@ -11,6 +11,7 @@ export const todoStore = createEntityStore<Todo>({
   endpoint: "/api/todos",
   fromResponse: (data) => sortTodos((data as { todos?: Todo[] }).todos ?? []),
   noun: "todo",
+  offlineKey: "todos",
 });
 
 export function useTodos() {

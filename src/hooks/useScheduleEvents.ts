@@ -10,6 +10,7 @@ export const eventStore = createEntityStore<ScheduleEvent>({
   endpoint: "/api/events",
   fromResponse: (data) => sortEvents((data as { events?: ScheduleEvent[] }).events ?? []),
   noun: "event",
+  offlineKey: "events",
 });
 
 // Callable outside the hook (e.g. from useTodos, after deleting a todo) since

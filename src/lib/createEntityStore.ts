@@ -1,6 +1,7 @@
 "use client";
 
 import { pushToast } from "@/lib/toast";
+import { clearOfflineCopy, describeAge, loadOfflineCopy, saveOfflineCopy } from "@/lib/offlineCache";
 
 // Shared machinery behind useTodos / useNotes / useScheduleEvents. Each of
 // those was a near-identical hand-rolled module store: a mutable array, a
@@ -45,8 +46,13 @@ export function createEntityStore<T>(config: {
   fromResponse: (data: unknown) => T[];
   /** Human noun for error toasts, e.g. "todo". */
   noun: string;
+  /**
+   * localStorage key for an offline copy. When set, each successful fetch
+   * saves the list, and a first load that fails outright falls back to it.
+   */
+  offlineKey?: string;
 }): EntityStore<T> {
-  const { endpoint, fromResponse, noun } = config;
+  const { endpoint, fromResponse, noun, offlineKey } = config;
 
   let store: T[] = [];
   let hydrated = false;
@@ -86,9 +92,13 @@ export function createEntityStore<T>(config: {
         signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
       });
       unauthorized = res.status === 401;
+      if (unauthorized && offlineKey) clearOfflineCopy(offlineKey);
       if (!res.ok) throw new Error(String(res.status));
       const next = fromResponse(await res.json());
-      if (id === latestRefresh && pendingWrites === 0) setStore(next);
+      if (id === latestRefresh && pendingWrites === 0) {
+        setStore(next);
+        if (offlineKey) saveOfflineCopy(offlineKey, next);
+      }
       return true;
     } catch {
       // Keep the last good cache; the next successful call resyncs it. No
@@ -118,7 +128,20 @@ export function createEntityStore<T>(config: {
       await new Promise((resolve) => setTimeout(resolve, delay));
       ok = await refresh();
     }
-    if (!ok && !unauthorized) pushToast(`Couldn't load your ${noun}s — check your connection, then switch back to this tab.`);
+    if (ok || unauthorized) return;
+    const saved = offlineKey ? loadOfflineCopy<T>(offlineKey) : null;
+    if (saved) {
+      // Show the last copy read-only-ish: the next successful refetch (on
+      // reconnect or tab focus) replaces it.
+      setStore(saved.items);
+      pushToast(
+        `Offline — showing your ${noun}s as of ${describeAge(saved.savedAt)}.`,
+        "info",
+        8000
+      );
+    } else {
+      pushToast(`Couldn't load your ${noun}s — check your connection, then switch back to this tab.`);
+    }
   }
 
   function ensureHydrated() {

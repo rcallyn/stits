@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ThemePreference, useTheme } from "@/hooks/useTheme";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
 import TabBarIcon, { TabIconName } from "@/components/TabBarIcon";
+import { clearAllOfflineCopies } from "@/lib/offlineCache";
 
 const links: { href: string; label: string; icon: TabIconName }[] = [
   { href: "/", label: "Dashboard", icon: "home" },
@@ -26,6 +27,7 @@ export default function Nav() {
   const { setOpen: setSearchOpen } = useSearchPalette();
 
   async function handleLogout() {
+    clearAllOfflineCopies();
     await fetch("/api/logout", { method: "POST" });
     // A full page load, not router.push, so the in-memory todo/event stores
     // are dropped and the next person to sign in on this device can't see

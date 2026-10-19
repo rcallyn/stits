@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useScheduleEvents } from "@/hooks/useScheduleEvents";
+import { ensureEventRange, useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useCategoryColors } from "@/hooks/useCategoryColors";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { expandRecurringEvents, isEventOnDate, isRecurringClassEvent, todayISODate } from "@/lib/schedule";
@@ -26,6 +26,10 @@ export default function CalendarPage() {
   const gridEnd = weeks[weeks.length - 1][6].date;
   const dotEvents = events.filter((event) => !isRecurringClassEvent(event));
   const expandedEvents = expandRecurringEvents(dotEvents, gridStart, gridEnd);
+
+  useEffect(() => {
+    ensureEventRange(gridStart, gridEnd);
+  }, [gridStart, gridEnd]);
 
   function goToMonth(delta: number) {
     const shifted = shiftMonth(viewYear, viewMonth, delta);

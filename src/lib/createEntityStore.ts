@@ -41,7 +41,8 @@ export type EntityStore<T> = {
 };
 
 export function createEntityStore<T>(config: {
-  endpoint: string;
+  /** Read at fetch time, so a store can change what it asks for (e.g. a date window). */
+  endpoint: string | (() => string);
   /** Pull the list out of the GET response envelope and sort it. */
   fromResponse: (data: unknown) => T[];
   /** Human noun for error toasts, e.g. "todo". */
@@ -87,7 +88,7 @@ export function createEntityStore<T>(config: {
     try {
       // A request that hangs (rather than fails) would otherwise leave the
       // list stuck on its loading skeleton; give up on it so it's retried.
-      const res = await fetch(endpoint, {
+      const res = await fetch(typeof endpoint === "function" ? endpoint() : endpoint, {
         cache: "no-store",
         signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
       });

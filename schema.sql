@@ -53,6 +53,7 @@ create table if not exists schedule_events (
   canvas_id text
 );
 create index if not exists schedule_events_user_id_idx on schedule_events (user_id);
+create index if not exists schedule_events_user_date_idx on schedule_events (user_id, date);
 
 create table if not exists settings (
   user_id uuid primary key references users(id) on delete cascade,

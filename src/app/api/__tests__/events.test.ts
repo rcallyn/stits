@@ -64,6 +64,33 @@ describe("GET /api/events", () => {
   });
 });
 
+describe("GET /api/events with a date range", () => {
+  it("filters in SQL, scoped to the user, and keeps recurring events that haven't ended", async () => {
+    const res = await GET(await authedRequest("/api/events?from=2026-10-01&to=2026-10-31"));
+    expect(res.status).toBe(200);
+    const q = fakeDb.queries[0];
+    expect(q.text).toContain("user_id = ?");
+    expect(q.text).toContain("recurrence is null");
+    expect(q.values).toEqual([USER_ID, "2026-10-31", "2026-10-01", "2026-10-01"]);
+  });
+
+  it("returns everything when no range is given", async () => {
+    await GET(await authedRequest("/api/events"));
+    expect(fakeDb.queries[0].values).toEqual([USER_ID]);
+  });
+
+  it.each([
+    "?from=2026-10-01",
+    "?to=2026-10-31",
+    "?from=nope&to=nope",
+    "?from=2026-11-01&to=2026-10-01",
+  ])("rejects a bad range %s before querying", async (qs) => {
+    const res = await GET(await authedRequest(`/api/events${qs}`));
+    expect(res.status).toBe(400);
+    expect(fakeDb.queries).toHaveLength(0);
+  });
+});
+
 describe("POST /api/events", () => {
   it("rejects invalid JSON and invalid fields with 400 before touching the database", async () => {
     const bad = await POST(await authedRequest("/api/events", { method: "POST", body: "{nope" }));

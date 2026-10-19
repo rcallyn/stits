@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTodos } from "@/hooks/useTodos";
-import { useScheduleEvents } from "@/hooks/useScheduleEvents";
+import { ensureAllEvents, useScheduleEvents } from "@/hooks/useScheduleEvents";
 import { useJumpToDate } from "@/hooks/useJumpToDate";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
 import { formatEventDate } from "@/lib/schedule";
@@ -29,6 +29,11 @@ export default function SearchPalette() {
   const { events } = useScheduleEvents();
   const { setJumpToDate } = useJumpToDate();
   const router = useRouter();
+
+  // Search covers the full history, not just the loaded date window.
+  useEffect(() => {
+    if (isOpen) ensureAllEvents();
+  }, [isOpen]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {

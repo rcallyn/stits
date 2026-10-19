@@ -2,7 +2,7 @@
 
 import { CSSProperties, PointerEvent as ReactPointerEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useScheduleEvents } from "@/hooks/useScheduleEvents";
+import { ensureEventRange, useScheduleEvents } from "@/hooks/useScheduleEvents";
 import {
   baseEventId,
   expandRecurringEvents,
@@ -92,6 +92,9 @@ export default function Home() {
   const weekDays = weekDates(selectedDate);
   const weekStart = weekDays[0];
   const weekEnd = weekDays[weekDays.length - 1];
+  useEffect(() => {
+    ensureEventRange(weekStart, weekEnd);
+  }, [weekStart, weekEnd]);
   const showTodayShortcut = viewMode === "week" ? !weekDays.includes(todayISODate()) : !isToday;
   // Canvas-synced assignments get their own panel beside the calendar and
   // stay out of the Todos list. Other School todos only show when due in the

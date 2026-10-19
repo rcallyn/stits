@@ -3,7 +3,7 @@ import { sql } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { ScheduleEvent } from "@/lib/schedule";
 import { parseBody } from "@/lib/apiValidation";
-import { eventCreateSchema } from "@/lib/schemas";
+import { dateSchema, eventCreateSchema } from "@/lib/schemas";
 
 type EventRow = {
   id: string;
@@ -45,13 +45,38 @@ function linkedTodo(todoId: string | undefined, userId: string) {
   return todoId ? sql`(select id from todos where id = ${todoId} and user_id = ${userId})` : null;
 }
 
+// Without `from`/`to` this returns every event (backups rely on that). With
+// them it returns what can appear in that range: events whose span overlaps
+// it, plus recurring events that start by `to` and haven't ended before
+// `from` — the client expands their occurrences itself.
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const userId = auth.user.id;
-  const rows = await sql<EventRow[]>`
-    select * from schedule_events where user_id = ${userId} order by date, time
-  `;
+  const params = req.nextUrl.searchParams;
+  const from = dateSchema.safeParse(params.get("from"));
+  const to = dateSchema.safeParse(params.get("to"));
+  const asked = params.has("from") || params.has("to");
+  if (asked && !(from.success && to.success && from.data <= to.data)) {
+    return NextResponse.json({ error: "from and to must both be YYYY-MM-DD, from <= to" }, { status: 400 });
+  }
+  const range = from.success && to.success ? { from: from.data, to: to.data } : null;
+  const rows = range
+    ? await sql<EventRow[]>`
+        select * from schedule_events
+        where user_id = ${userId}
+          and date <= ${range.to}::date
+          and (
+            case when recurrence is null
+              then coalesce(end_date, date) >= ${range.from}::date
+              else coalesce(recurrence->>'until', '9999-12-31') >= ${range.from}::text
+            end
+          )
+        order by date, time
+      `
+    : await sql<EventRow[]>`
+        select * from schedule_events where user_id = ${userId} order by date, time
+      `;
   return NextResponse.json({ events: rows.map(rowToEvent) });
 }
 

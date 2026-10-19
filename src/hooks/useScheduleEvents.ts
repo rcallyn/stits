@@ -1,17 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { baseEventId, ScheduleEvent, sortEvents } from "@/lib/schedule";
+import { baseEventId, ScheduleEvent, sortEvents, todayISODate } from "@/lib/schedule";
 import { createEntityStore } from "@/lib/createEntityStore";
+import { ALL_TIME, covers, DateWindow, defaultWindow, eventsUrl, widenWindow } from "@/lib/eventWindow";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// Only this date window is fetched; ensureEventRange() widens it on demand.
+let eventWindow: DateWindow = defaultWindow(todayISODate());
+
 export const eventStore = createEntityStore<ScheduleEvent>({
-  endpoint: "/api/events",
+  endpoint: () => eventsUrl(eventWindow),
   fromResponse: (data) => sortEvents((data as { events?: ScheduleEvent[] }).events ?? []),
   noun: "event",
   offlineKey: "events",
 });
+
+/** Make sure events overlapping [from, to] are loaded, fetching more if the window falls short. */
+export function ensureEventRange(from: string, to: string) {
+  if (covers(eventWindow, from, to)) return;
+  eventWindow = widenWindow(eventWindow, from, to);
+  eventStore.refresh();
+}
+
+/** Load the whole history (for search). */
+export function ensureAllEvents() {
+  if (eventWindow === ALL_TIME) return;
+  eventWindow = ALL_TIME;
+  eventStore.refresh();
+}
 
 // Callable outside the hook (e.g. from useTodos, after deleting a todo) since
 // a todo deletion cascade-deletes its linked schedule events in Postgres via

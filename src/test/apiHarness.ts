@@ -24,7 +24,7 @@ export function createFakeSql() {
     if (!Array.isArray(strings)) return { fragment: strings };
     const query = { text: strings.join("?").replace(/\s+/g, " ").trim(), values };
     // Auth lookups aren't interesting to assertions, so they aren't recorded.
-    if (query.text.includes("from users where id = ?")) {
+    if (query.text.includes("is_admin, pushover_user_key is not null")) {
       const [id, version] = values;
       const ok = account.active && id === USER_ID && version === account.sessionVersion;
       return Promise.resolve(

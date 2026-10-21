@@ -192,11 +192,30 @@ async function fetchFeedText(feedUrl: string): Promise<string> {
   throw new CanvasSyncError("That feed URL redirected too many times.", 502);
 }
 
+// Canvas ends each title with the course's full name in brackets, e.g.
+// "Quiz 04 [MATH/STAT 418, Section 001: Prob and Stoc Proc. FA26
+// (22681--UP---P-STAT----418-------001-)]". Only the course code is kept:
+// "Quiz 04 [STAT 418]". The SIS id in parentheses names the real course even
+// when it's cross-listed, so it wins; otherwise the first code in the name is
+// used (a cross-listing like "CMPEN/EE 362" keeps its first department).
+// A name with no recognisable code is left as it is.
+const COURSE_TAG = /\s*\[([^\]]+)\]\s*$/;
+const SIS_COURSE = /\(\d+-[^)]*?-([A-Z]{2,})-+(\d{3}[A-Z]?)-/;
+const COURSE_CODE = /(?<![A-Za-z])([A-Z]{2,6})(?:\/[A-Z]{2,6})*[ _-]?(\d{3}[A-Z]?)(?!\d)/;
+
+export function shortenCourseTag(title: string): string {
+  const tag = title.match(COURSE_TAG);
+  if (!tag) return title;
+  const code = tag[1].match(SIS_COURSE) ?? tag[1].match(COURSE_CODE);
+  if (!code) return title;
+  return `${title.slice(0, tag.index)} [${code[1]} ${code[2]}]`.trim();
+}
+
 async function fetchAssignments(feedUrl: string): Promise<CanvasAssignment[]> {
   const items = parseIcs(await fetchFeedText(feedUrl));
   return items.flatMap((item) =>
     item.kind === "todo"
-      ? [{ canvasId: item.canvasId, title: item.title, dueDate: isoToDateInZone(item.dueAtISO) }]
+      ? [{ canvasId: item.canvasId, title: shortenCourseTag(item.title), dueDate: isoToDateInZone(item.dueAtISO) }]
       : []
   );
 }

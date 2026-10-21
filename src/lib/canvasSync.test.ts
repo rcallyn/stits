@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CanvasAssignment, isoToDateInZone, LinkedEvent, planCanvasSync, SyncedTodo } from "@/lib/canvasSync";
+import {
+  CanvasAssignment,
+  isoToDateInZone,
+  LinkedEvent,
+  planCanvasSync,
+  shortenCourseTag,
+  SyncedTodo,
+} from "@/lib/canvasSync";
 
 const TODAY = "2026-10-11";
 
@@ -90,5 +97,32 @@ describe("isoToDateInZone", () => {
 
   it("passes a plain date through", () => {
     expect(isoToDateInZone("2026-10-14")).toBe("2026-10-14");
+  });
+});
+
+describe("shortenCourseTag", () => {
+  it("takes the course from the SIS id, even when cross-listed", () => {
+    expect(
+      shortenCourseTag(
+        "Quiz 04 [MATH/STAT 418, Section 001: Prob and Stoc Proc. FA26 (22681--UP---P-STAT----418-------001-)]"
+      )
+    ).toBe("Quiz 04 [STAT 418]");
+    expect(
+      shortenCourseTag("P2 [CMPSC 311 - Fall 2026: Intro Sys Progmg (22681--UP---P-CMPSC---311-------002-)]")
+    ).toBe("P2 [CMPSC 311]");
+  });
+
+  it("falls back to the first course code in the name", () => {
+    expect(shortenCourseTag("hw4 [CMPEN/EE 362: Communication Networks]")).toBe("hw4 [CMPEN 362]");
+    expect(shortenCourseTag("HW 5 [Section Merge: EE310_AllSections_Fall2026]")).toBe("HW 5 [EE 310]");
+  });
+
+  it("leaves a title alone when there's no recognisable course code", () => {
+    expect(shortenCourseTag("Reading [Fall 2026 Seminar]")).toBe("Reading [Fall 2026 Seminar]");
+    expect(shortenCourseTag("HW 1")).toBe("HW 1");
+  });
+
+  it("is a no-op on an already shortened title", () => {
+    expect(shortenCourseTag("HW 5 [EE 310]")).toBe("HW 5 [EE 310]");
   });
 });

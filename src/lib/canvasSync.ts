@@ -198,24 +198,32 @@ async function fetchFeedText(feedUrl: string): Promise<string> {
 // "Quiz 04 [STAT 418]". The SIS id in parentheses names the real course even
 // when it's cross-listed, so it wins; otherwise the first code in the name is
 // used (a cross-listing like "CMPEN/EE 362" keeps its first department).
-// A name with no recognisable code is left as it is.
+// A name with no recognisable code is left as it is. `deptLabels` is the
+// user's own spelling for a department, e.g. { CMPSC: "CMPSCI" }.
 const COURSE_TAG = /\s*\[([^\]]+)\]\s*$/;
 const SIS_COURSE = /\(\d+-[^)]*?-([A-Z]{2,})-+(\d{3}[A-Z]?)-/;
 const COURSE_CODE = /(?<![A-Za-z])([A-Z]{2,6})(?:\/[A-Z]{2,6})*[ _-]?(\d{3}[A-Z]?)(?!\d)/;
 
-export function shortenCourseTag(title: string): string {
+export function shortenCourseTag(title: string, deptLabels: Record<string, string> = {}): string {
   const tag = title.match(COURSE_TAG);
   if (!tag) return title;
   const code = tag[1].match(SIS_COURSE) ?? tag[1].match(COURSE_CODE);
   if (!code) return title;
-  return `${title.slice(0, tag.index)} [${code[1]} ${code[2]}]`.trim();
+  const dept = deptLabels[code[1]] ?? code[1];
+  return `${title.slice(0, tag.index)} [${dept} ${code[2]}]`.trim();
 }
 
-async function fetchAssignments(feedUrl: string): Promise<CanvasAssignment[]> {
+async function fetchAssignments(feedUrl: string, deptLabels: Record<string, string>): Promise<CanvasAssignment[]> {
   const items = parseIcs(await fetchFeedText(feedUrl));
   return items.flatMap((item) =>
     item.kind === "todo"
-      ? [{ canvasId: item.canvasId, title: shortenCourseTag(item.title), dueDate: isoToDateInZone(item.dueAtISO) }]
+      ? [
+          {
+            canvasId: item.canvasId,
+            title: shortenCourseTag(item.title, deptLabels),
+            dueDate: isoToDateInZone(item.dueAtISO),
+          },
+        ]
       : []
   );
 }
@@ -232,13 +240,13 @@ export async function runCanvasSync(userId: string, feedUrl?: string): Promise<C
       on conflict (user_id) do update set canvas_feed_url = excluded.canvas_feed_url
     `;
   }
-  const [settings] = await sql<{ canvas_feed_url: string | null }[]>`
-    select canvas_feed_url from settings where user_id = ${userId}
+  const [settings] = await sql<{ canvas_feed_url: string | null; canvas_dept_labels: Record<string, string> | null }[]>`
+    select canvas_feed_url, canvas_dept_labels from settings where user_id = ${userId}
   `;
   const savedUrl = settings?.canvas_feed_url?.trim();
   if (!savedUrl) return null;
 
-  const assignments = await fetchAssignments(savedUrl);
+  const assignments = await fetchAssignments(savedUrl, settings.canvas_dept_labels ?? {});
 
   const todos = await sql<SyncedTodo[]>`
     select id, canvas_id as "canvasId", title, due_date as "dueDate", done

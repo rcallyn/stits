@@ -122,6 +122,15 @@ describe("shortenCourseTag", () => {
     expect(shortenCourseTag("HW 1")).toBe("HW 1");
   });
 
+  it("uses the user's own spelling for a department", () => {
+    const labels = { CMPSC: "CMPSCI" };
+    expect(
+      shortenCourseTag("P2 [CMPSC 311 - Fall 2026: Intro Sys Progmg (22681--UP---P-CMPSC---311-------002-)]", labels)
+    ).toBe("P2 [CMPSCI 311]");
+    expect(shortenCourseTag("hw4 [CMPEN/EE 362: Communication Networks]", labels)).toBe("hw4 [CMPEN 362]");
+    expect(shortenCourseTag("P2 [CMPSCI 311]", labels)).toBe("P2 [CMPSCI 311]");
+  });
+
   it("is a no-op on an already shortened title", () => {
     expect(shortenCourseTag("HW 5 [EE 310]")).toBe("HW 5 [EE 310]");
   });

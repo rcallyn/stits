@@ -60,8 +60,13 @@ create table if not exists settings (
   category_labels jsonb not null default '{}',
   category_order jsonb not null default '[]',
   canvas_feed_url text,
-  canvas_last_synced_at timestamptz
+  canvas_last_synced_at timestamptz,
+  -- The user's own spelling for a department in synced titles, e.g.
+  -- {"CMPSC": "CMPSCI"} (see shortenCourseTag in lib/canvasSync.ts).
+  canvas_dept_labels jsonb not null default '{}'
 );
+-- Added after release, so older databases need it added in place.
+alter table settings add column if not exists canvas_dept_labels jsonb not null default '{}';
 
 -- Tracks failed login/2FA attempts and signups per IP to throttle
 -- brute-forcing and signup spam. `scope` separates the steps since they

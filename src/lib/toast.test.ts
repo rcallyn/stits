@@ -54,4 +54,15 @@ describe("toast store", () => {
     vi.advanceTimersByTime(60_000);
     expect(getToasts().map((t) => t.message)).toEqual(["sticky"]);
   });
+
+  it("carries an optional action and returns it untouched", () => {
+    const run = vi.fn();
+    pushToast("Deleted “x”.", "info", 0, { label: "Undo", run });
+    pushToast("plain", "info", 0);
+    const [withAction, plain] = getToasts();
+    expect(withAction.action?.label).toBe("Undo");
+    withAction.action?.run();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(plain.action).toBeUndefined();
+  });
 });

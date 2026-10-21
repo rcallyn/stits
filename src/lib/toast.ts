@@ -5,7 +5,8 @@
 // can report a failed save without threading a callback through every hook.
 
 export type ToastKind = "error" | "info";
-export type Toast = { id: string; kind: ToastKind; message: string };
+export type ToastAction = { label: string; run: () => void };
+export type Toast = { id: string; kind: ToastKind; message: string; action?: ToastAction };
 
 let toasts: Toast[] = [];
 const listeners = new Set<() => void>();
@@ -28,10 +29,15 @@ export function dismissToast(id: string) {
   emit();
 }
 
-export function pushToast(message: string, kind: ToastKind = "error", ttlMs = 6000) {
+export function pushToast(
+  message: string,
+  kind: ToastKind = "error",
+  ttlMs = 6000,
+  action?: ToastAction
+) {
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Math.random());
-  toasts = [...toasts, { id, kind, message }];
+  toasts = [...toasts, { id, kind, message, action }];
   emit();
   if (ttlMs > 0 && typeof window !== "undefined") {
     window.setTimeout(() => dismissToast(id), ttlMs);

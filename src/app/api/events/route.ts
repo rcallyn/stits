@@ -98,11 +98,12 @@ export async function POST(req: NextRequest) {
     isNoteEvent,
     recurrence,
     canvasId,
+    done,
   } = parsed.data;
 
   const [row] = await sql<EventRow[]>`
     insert into schedule_events
-      (user_id, title, date, end_date, time, end_time, todo_id, category, notes, is_note_event, recurrence, canvas_id)
+      (user_id, title, date, end_date, time, end_time, todo_id, category, notes, is_note_event, recurrence, canvas_id, done)
     values (
       ${userId},
       ${title},
@@ -115,7 +116,8 @@ export async function POST(req: NextRequest) {
       ${notes ? sql.json(notes) : null},
       ${isNoteEvent ?? null},
       ${recurrence ? sql.json(recurrence) : null},
-      ${canvasId ?? null}
+      ${canvasId ?? null},
+      ${done ?? null}
     )
     returning *
   `;

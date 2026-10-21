@@ -56,6 +56,23 @@ describe("/api/todos", () => {
     expect(res.status).toBe(200);
     expect(fakeDb.queries[0].values.slice(0, 2)).toEqual([USER_ID, "Read"]);
   });
+
+  it("restores a todo's done state and completion time when asked (Undo)", async () => {
+    fakeDb.respond(() => [{ id: TODO_ID, title: "Read", done: true }]);
+    const completedAt = "2026-10-20T15:00:00.000Z";
+    const res = await POST(
+      await authedRequest("/api/todos", { method: "POST", body: { title: "Read", done: true, completedAt } })
+    );
+    expect(res.status).toBe(200);
+    expect(fakeDb.queries[0].values).toContain(true);
+    expect(fakeDb.queries[0].values).toContain(completedAt);
+  });
+
+  it("defaults a new todo to not done", async () => {
+    fakeDb.respond(() => [{ id: TODO_ID, title: "Read", done: false }]);
+    await POST(await authedRequest("/api/todos", { method: "POST", body: { title: "Read" } }));
+    expect(fakeDb.queries[0].values).toContain(false);
+  });
 });
 
 describe("/api/todos/[id]", () => {

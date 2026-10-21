@@ -184,7 +184,7 @@ export default function Home() {
 
   function handleMergeNoteEvent(source: ScheduleEvent, target: ScheduleEvent) {
     updateEvent(target.id, { notes: [...(target.notes ?? []), ...(source.notes ?? [])] });
-    removeEvent(source.id);
+    removeEvent(source.id, false);
   }
 
   return (

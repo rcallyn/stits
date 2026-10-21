@@ -73,7 +73,7 @@ Over about three months that came to ~9,400 lines of TypeScript in more than
 | Validation | Zod schemas on every API request body |
 | Auth       | Email + password accounts with admin approval, scrypt hashing, HMAC-signed cookies, optional push-notification 2FA |
 | Jobs       | Vercel Cron for the daily digest and Canvas sync |
-| Testing/CI | Vitest (207 unit and route tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
+| Testing/CI | Vitest (217 unit and route tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
 
 ## Engineering highlights
 

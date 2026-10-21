@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { baseEventId, ScheduleEvent, sortEvents, todayISODate } from "@/lib/schedule";
+import { pushToast } from "@/lib/toast";
 import { createEntityStore } from "@/lib/createEntityStore";
 import { ALL_TIME, covers, DateWindow, defaultWindow, eventsUrl, widenWindow } from "@/lib/eventWindow";
 
@@ -63,19 +64,8 @@ export function useScheduleEvents() {
     );
   }, []);
 
-  // `id` may be a virtual recurring-occurrence id (`realId::date`) — the API
-  // resolves it back to the real stored event, so acting on any occurrence
-  // acts on the whole series.
-  const removeEvent = useCallback((id: string) => {
-    const realId = baseEventId(id);
-    eventStore.mutate(
-      (cur) => cur.filter((event) => event.id !== realId),
-      () => fetch(`/api/events/${realId}`, { method: "DELETE" }),
-      { action: "delete" }
-    );
-  }, []);
-
-  // Re-inserts a previously-removed event with its original id intact, for undo.
+  // Re-inserts a previously-removed event, for undo. The server assigns a new
+  // id; the optimistic copy keeps the old one until the refetch swaps it.
   const restoreEvent = useCallback((event: ScheduleEvent) => {
     eventStore.mutate(
       (cur) => sortEvents([...cur.filter((e) => e.id !== event.id), event]),
@@ -83,6 +73,29 @@ export function useScheduleEvents() {
       { action: "restore" }
     );
   }, []);
+
+  // `id` may be a virtual recurring-occurrence id (`realId::date`) — the API
+  // resolves it back to the real stored event, so acting on any occurrence
+  // acts on the whole series. Offers an Undo toast unless `offerUndo` is false
+  // (e.g. when the event was merged into another and restoring would duplicate).
+  const removeEvent = useCallback(
+    (id: string, offerUndo = true) => {
+      const realId = baseEventId(id);
+      const removed = eventStore.getAll().find((event) => event.id === realId);
+      eventStore.mutate(
+        (cur) => cur.filter((event) => event.id !== realId),
+        () => fetch(`/api/events/${realId}`, { method: "DELETE" }),
+        { action: "delete" }
+      );
+      if (removed && offerUndo) {
+        pushToast(`Deleted “${removed.title}”.`, "info", 8000, {
+          label: "Undo",
+          run: () => restoreEvent(removed),
+        });
+      }
+    },
+    [restoreEvent]
+  );
 
   const updateEvent = useCallback(
     (

@@ -19,18 +19,30 @@ export default function Toaster() {
       aria-live="polite"
     >
       {toasts.map((toast) => (
-        <button
+        <div
           key={toast.id}
-          type="button"
-          onClick={() => dismissToast(toast.id)}
-          className={`pointer-events-auto max-w-md rounded-xl px-4 py-2.5 text-left text-sm shadow-[0_8px_30px_rgba(0,0,0,0.25)] backdrop-blur transition-colors ${
+          className={`pointer-events-auto flex max-w-md items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-[0_8px_30px_rgba(0,0,0,0.25)] backdrop-blur ${
             toast.kind === "error"
-              ? "bg-red-600/95 text-white hover:bg-red-600"
-              : "bg-zinc-900/95 text-white hover:bg-zinc-900 dark:bg-zinc-100/95 dark:text-zinc-900"
+              ? "bg-red-600/95 text-white"
+              : "bg-zinc-900/95 text-white dark:bg-zinc-100/95 dark:text-zinc-900"
           }`}
         >
-          {toast.message}
-        </button>
+          <button type="button" onClick={() => dismissToast(toast.id)} className="text-left">
+            {toast.message}
+          </button>
+          {toast.action && (
+            <button
+              type="button"
+              onClick={() => {
+                dismissToast(toast.id);
+                toast.action?.run();
+              }}
+              className="shrink-0 rounded-md px-2 py-0.5 font-semibold underline underline-offset-2 hover:opacity-80"
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
       ))}
     </div>
   );

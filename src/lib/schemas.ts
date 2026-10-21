@@ -36,6 +36,9 @@ export const todoCreateSchema = z.object({
   priority: todoPrioritySchema.optional(),
   subtasks: z.array(subtaskSchema).optional(),
   canvasId: z.string().max(500).optional(),
+  // Only sent when restoring a deleted todo (Undo), so it comes back as it was.
+  done: z.boolean().optional(),
+  completedAt: z.iso.datetime().nullish(),
 });
 
 export const todoPatchSchema = z
@@ -130,8 +133,6 @@ export const canvasSyncRequestSchema = z.object({
 // and additionally requires an explicit confirm string.
 const backupTodoSchema = todoCreateSchema.extend({
   id: z.uuid(),
-  done: z.boolean().optional(),
-  completedAt: z.iso.datetime().nullish(),
 });
 
 const backupEventSchema = eventCreateSchema.extend({

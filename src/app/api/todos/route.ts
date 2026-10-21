@@ -49,10 +49,11 @@ export async function POST(req: NextRequest) {
   const userId = auth.user.id;
   const parsed = await parseBody(req, todoCreateSchema);
   if (!parsed.ok) return parsed.response;
-  const { title, description, dueDate, category, priority, subtasks, canvasId } = parsed.data;
+  const { title, description, dueDate, category, priority, subtasks, canvasId, done, completedAt } =
+    parsed.data;
 
   const [row] = await sql<TodoRow[]>`
-    insert into todos (user_id, title, description, due_date, category, priority, subtasks, canvas_id)
+    insert into todos (user_id, title, description, due_date, category, priority, subtasks, canvas_id, done, completed_at)
     values (
       ${userId},
       ${title},
@@ -61,7 +62,9 @@ export async function POST(req: NextRequest) {
       ${category ?? null},
       ${priority ?? null},
       ${subtasks ? sql.json(subtasks) : null},
-      ${canvasId ?? null}
+      ${canvasId ?? null},
+      ${done ?? false},
+      ${completedAt ?? null}
     )
     returning *
   `;

@@ -4,9 +4,11 @@ import {
   eventDurationMinutes,
   expandRecurringEvents,
   isEventOnDate,
+  isRecurringClassEvent,
   layoutDayEvents,
   minutesToTime,
   ScheduleEvent,
+  scheduleEventKind,
   shiftISODate,
   sortEvents,
   timeToMinutes,
@@ -195,5 +197,22 @@ describe("todayISODate", () => {
   it("formats the local date as YYYY-MM-DD", () => {
     vi.setSystemTime(new Date(2026, 8, 2, 13, 0, 0));
     expect(todayISODate()).toBe("2026-09-02");
+  });
+});
+
+describe("scheduleEventKind", () => {
+  it("classifies todo-linked, note, and plain events, with todoId taking precedence", () => {
+    expect(scheduleEventKind({ todoId: "t1", isNoteEvent: true })).toBe("todo");
+    expect(scheduleEventKind({ isNoteEvent: true })).toBe("note");
+    expect(scheduleEventKind({})).toBe("event");
+  });
+});
+
+describe("isRecurringClassEvent", () => {
+  it("is true only for recurring events in the school category", () => {
+    const recurrence = { freq: "weekly" as const, interval: 1 };
+    expect(isRecurringClassEvent({ category: "school", recurrence })).toBe(true);
+    expect(isRecurringClassEvent({ category: "school" })).toBe(false);
+    expect(isRecurringClassEvent({ category: "house", recurrence })).toBe(false);
   });
 });

@@ -3,6 +3,8 @@ import {
   baseEventId,
   eventDurationMinutes,
   expandRecurringEvents,
+  formatEventDate,
+  formatEventTime,
   isEventOnDate,
   isRecurringClassEvent,
   layoutDayEvents,
@@ -214,5 +216,32 @@ describe("isRecurringClassEvent", () => {
     expect(isRecurringClassEvent({ category: "school", recurrence })).toBe(true);
     expect(isRecurringClassEvent({ category: "school" })).toBe(false);
     expect(isRecurringClassEvent({ category: "house", recurrence })).toBe(false);
+  });
+});
+
+describe("formatEventDate", () => {
+  it("formats a YYYY-MM-DD string as the same calendar day, ignoring the timezone", () => {
+    const out = formatEventDate("2026-03-05");
+    expect(out).toBe(
+      new Date(2026, 2, 5).toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+    );
+    expect(out).toContain("5");
+  });
+});
+
+describe("formatEventTime", () => {
+  it("formats an HH:MM string as a locale time without the date", () => {
+    const out = formatEventTime("14:05");
+    expect(out).toBe(
+      new Date(2000, 0, 1, 14, 5).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    );
+    expect(out).toContain("05");
   });
 });

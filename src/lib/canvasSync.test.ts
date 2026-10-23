@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CanvasAssignment,
   isoToDateInZone,
@@ -6,6 +6,7 @@ import {
   planCanvasSync,
   shortenCourseTag,
   SyncedTodo,
+  todayInZone,
 } from "@/lib/canvasSync";
 
 const TODAY = "2026-10-11";
@@ -133,5 +134,17 @@ describe("shortenCourseTag", () => {
 
   it("is a no-op on an already shortened title", () => {
     expect(shortenCourseTag("HW 5 [EE 310]")).toBe("HW 5 [EE 310]");
+  });
+});
+
+describe("todayInZone", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("returns the date in the given zone, which can differ from UTC", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-12T02:30:00Z"));
+    expect(todayInZone("UTC")).toBe("2026-10-12");
+    expect(todayInZone("America/Los_Angeles")).toBe("2026-10-11");
+    expect(todayInZone("Pacific/Auckland")).toBe("2026-10-12");
   });
 });

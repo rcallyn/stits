@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { CATEGORIES, Category } from "@/lib/categories";
 import {
-  EMPTY_SETTINGS,
   ensureSettingsHydrated,
   getSettingsSnapshot,
   patchSettings,
   subscribeSettings,
+  useSettingsFallback,
 } from "@/hooks/settingsStore";
 
 export function useCategoryLabels() {
@@ -15,7 +15,8 @@ export function useCategoryLabels() {
     ensureSettingsHydrated();
   }, []);
 
-  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => EMPTY_SETTINGS);
+  const fallback = useSettingsFallback();
+  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => fallback);
 
   const labelFor = useCallback(
     (category: Category) => settings.categoryLabels[category] ?? CATEGORIES[category].label,

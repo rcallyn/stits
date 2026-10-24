@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Nav from "@/components/Nav";
 import SearchPalette from "@/components/SearchPalette";
 import Toaster from "@/components/Toaster";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import TodoDragGhost from "@/components/TodoDragGhost";
+import DemoBanner, { DemoSettingsProvider } from "@/components/DemoBanner";
+import { DEMO_COOKIE_NAME } from "@/lib/demo/demoMode";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +34,19 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // Demo mode (see app/demo/route.ts) adds a banner and serves the sample data.
+  const demo = (await cookies()).get(DEMO_COOKIE_NAME)?.value === "1";
+  const app = (
+    <>
+      <Nav demo={demo} />
+      {demo && <DemoBanner />}
+      <div className="flex flex-1 flex-col pb-16 md:pb-0">{children}</div>
+      <SearchPalette />
+      <Toaster />
+      <ServiceWorkerRegister />
+      <TodoDragGhost />
+    </>
+  );
   return (
     <html lang="en" className="h-full antialiased">
       <head>
@@ -43,12 +58,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <Nav />
-        <div className="flex flex-1 flex-col pb-16 md:pb-0">{children}</div>
-        <SearchPalette />
-        <Toaster />
-        <ServiceWorkerRegister />
-        <TodoDragGhost />
+        {demo ? <DemoSettingsProvider>{app}</DemoSettingsProvider> : app}
       </body>
     </html>
   );

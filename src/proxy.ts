@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidSessionCookie, SESSION_COOKIE_NAME } from "@/lib/session";
+import { DEMO_COOKIE_NAME } from "@/lib/demo/demoMode";
+
+const AUTH_PAGES = new Set(["/login", "/signup"]);
 
 const PUBLIC_PATHS = new Set([
   "/login",
   "/signup",
   "/offline",
+  "/demo",
   "/api/login",
   "/api/verify-2fa",
   "/api/signup",
@@ -60,12 +64,29 @@ export async function proxy(request: NextRequest) {
   };
 
   const { pathname } = request.nextUrl;
+  const demo = request.cookies.get(DEMO_COOKIE_NAME)?.value === "1";
+
+  // Signing in or signing up ends demo mode, so those forms (and the account
+  // they lead to) talk to the real server rather than the sample data.
+  if (demo && AUTH_PAGES.has(pathname)) {
+    const res = NextResponse.redirect(request.nextUrl.clone());
+    res.cookies.delete(DEMO_COOKIE_NAME);
+    return stop(res);
+  }
+
   if (PUBLIC_PATHS.has(pathname)) {
     return pass();
   }
 
   const cookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (await isValidSessionCookie(cookie)) {
+    return pass();
+  }
+
+  // In demo mode the pages load without a session — they're client shells
+  // with no user data, and the client answers their /api calls itself (see
+  // lib/demo/demoFetch.ts). The API routes below stay locked.
+  if (demo && !pathname.startsWith("/api/")) {
     return pass();
   }
 

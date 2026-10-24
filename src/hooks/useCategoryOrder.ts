@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { Category, CATEGORY_LIST } from "@/lib/categories";
 import {
-  EMPTY_SETTINGS,
   ensureSettingsHydrated,
   getSettingsSnapshot,
   patchSettings,
   subscribeSettings,
+  useSettingsFallback,
 } from "@/hooks/settingsStore";
 
 const DEFAULT_ORDER: Category[] = CATEGORY_LIST.map(([key]) => key);
@@ -17,7 +17,8 @@ export function useCategoryOrder() {
     ensureSettingsHydrated();
   }, []);
 
-  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => EMPTY_SETTINGS);
+  const fallback = useSettingsFallback();
+  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => fallback);
   const stored = settings.categoryOrder;
   const order =
     stored.length > 0

@@ -139,6 +139,23 @@ export default function LoginPage() {
           </Link>
         </p>
       )}
+
+      {stage === "password" && (
+        <div className="rounded-lg bg-black/[.03] p-4 text-sm dark:bg-white/[.05]">
+          <p className="font-medium">Just looking?</p>
+          <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+            Try stits with a sample student&rsquo;s week — classes, a campus job, clubs and chores. No account
+            needed, and nothing you change is saved.
+          </p>
+          {/* A plain link: /demo is a route handler that sets the demo cookie. */}
+          <a
+            href="/demo"
+            className="mt-3 inline-flex h-9 items-center rounded-lg bg-black/[.06] px-3 font-medium transition-colors hover:bg-black/[.1] dark:bg-white/[.1] dark:hover:bg-white/[.15]"
+          >
+            Open the demo →
+          </a>
+        </div>
+      )}
     </main>
   );
 }

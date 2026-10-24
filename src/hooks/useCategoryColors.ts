@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { Category } from "@/lib/categories";
 import {
-  EMPTY_SETTINGS,
   ensureSettingsHydrated,
   getSettingsSnapshot,
   patchSettings,
   subscribeSettings,
+  useSettingsFallback,
 } from "@/hooks/settingsStore";
 
 export function useCategoryColors() {
@@ -15,7 +15,8 @@ export function useCategoryColors() {
     ensureSettingsHydrated();
   }, []);
 
-  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => EMPTY_SETTINGS);
+  const fallback = useSettingsFallback();
+  const settings = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => fallback);
 
   const setCategoryColor = useCallback((category: Category, colorKey: string) => {
     patchSettings({

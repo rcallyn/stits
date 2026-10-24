@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import {
-  EMPTY_SETTINGS,
   ensureSettingsHydrated,
   getSettingsHydratedSnapshot,
   getSettingsSnapshot,
   patchSettings,
   subscribeSettings,
+  useSettingsFallback,
 } from "@/hooks/settingsStore";
 
 export type CanvasSettings = {
@@ -20,7 +20,8 @@ export function useCanvasSettings() {
     ensureSettingsHydrated();
   }, []);
 
-  const raw = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => EMPTY_SETTINGS);
+  const fallback = useSettingsFallback();
+  const raw = useSyncExternalStore(subscribeSettings, getSettingsSnapshot, () => fallback);
   const loaded = useSyncExternalStore(subscribeSettings, getSettingsHydratedSnapshot, () => false);
   const settings: CanvasSettings = { feedUrl: raw.canvasFeedUrl, lastSyncedAt: raw.canvasLastSyncedAt };
 

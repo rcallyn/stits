@@ -85,7 +85,7 @@ export default function OtherPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Other</h1>
         <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-          Rush, career, school, house management, and everything else — todos.
+          Todos by category: {order.map(labelFor).join(", ")}.
         </p>
       </div>
 

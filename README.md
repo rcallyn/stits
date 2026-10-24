@@ -15,6 +15,12 @@ can request their own account, which I approve from inside the app.
 It's deployed on Vercel with a Postgres database and has been my daily
 planner since July 2026.
 
+**Try it without an account:** the sign-in page links to a demo (`/demo`)
+with a sample student's week: classes, a campus job, club soccer, robotics,
+choir and chores. Everything works on the sample data, which lives only in
+that browser tab. Nothing is sent to the server, and quick add uses a simple
+offline parser instead of Claude.
+
 ![Dashboard — week view with todos, sample data](docs/dashboard-demo.png)
 <sub>Sample data shown above, not my real todos or schedule.</sub>
 
@@ -70,7 +76,7 @@ Over about three months that came to ~9,400 lines of TypeScript in more than
 | Validation | Zod schemas on every API request body |
 | Auth       | Email + password accounts with admin approval, scrypt hashing, HMAC-signed cookies, optional push-notification 2FA |
 | Jobs       | Vercel Cron for the daily digest and Canvas sync |
-| Testing/CI | Vitest (151 unit tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
+| Testing/CI | Vitest (162 unit tests), ESLint, `tsc` and a production build on every push via GitHub Actions; Dependabot for weekly updates |
 
 ## Engineering highlights
 

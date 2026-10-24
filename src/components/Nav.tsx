@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ThemePreference, useTheme } from "@/hooks/useTheme";
 import { useSearchPalette } from "@/hooks/useSearchPalette";
 import TabBarIcon, { TabIconName } from "@/components/TabBarIcon";
+import { exitDemo } from "@/lib/demo/demoFetch";
 
 const links: { href: string; label: string; icon: TabIconName }[] = [
   { href: "/", label: "Dashboard", icon: "home" },
@@ -20,7 +21,7 @@ const ACTIVE_TINT = "#0a84ff";
 const THEME_ORDER: ThemePreference[] = ["system", "light", "dark"];
 const THEME_ICON: Record<ThemePreference, string> = { system: "🖥️", light: "☀️", dark: "🌙" };
 
-export default function Nav() {
+export default function Nav({ demo = false }: { demo?: boolean }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { setOpen: setSearchOpen } = useSearchPalette();
@@ -80,12 +81,10 @@ export default function Nav() {
             </button>
             <button
               type="button"
-              onClick={handleLogout}
-              aria-label="Log out"
-              title="Log out"
+              onClick={demo ? exitDemo : handleLogout}
               className="rounded-md px-2 py-1 text-[12px] text-white/70 transition-colors hover:text-white"
             >
-              Log out
+              {demo ? "Exit demo" : "Log out"}
             </button>
           </div>
         </nav>

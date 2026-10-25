@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   accountPatchSchema,
+  adminUserPatchSchema,
+  backupImportSchema,
+  passwordChangeSchema,
   canvasSyncRequestSchema,
   signupSchema,
   eventCreateSchema,
@@ -101,5 +104,51 @@ describe("accountPatchSchema", () => {
     expect(accountPatchSchema.safeParse({ currentPassword, pushoverUserKey: "short" }).success).toBe(false);
     expect(accountPatchSchema.safeParse({ currentPassword, pushoverUserKey: key + "!" }).success).toBe(false);
     expect(accountPatchSchema.safeParse({ pushoverUserKey: key }).success).toBe(false);
+  });
+});
+
+describe("passwordChangeSchema", () => {
+  it("needs the current password and an 8+ character new one", () => {
+    expect(passwordChangeSchema.safeParse({ currentPassword: "old", newPassword: "12345678" }).success).toBe(true);
+    expect(passwordChangeSchema.safeParse({ currentPassword: "old", newPassword: "1234567" }).success).toBe(false);
+    expect(passwordChangeSchema.safeParse({ currentPassword: "", newPassword: "12345678" }).success).toBe(false);
+    expect(passwordChangeSchema.safeParse({ newPassword: "12345678" }).success).toBe(false);
+  });
+});
+
+describe("adminUserPatchSchema", () => {
+  it("only allows activating a user", () => {
+    expect(adminUserPatchSchema.safeParse({ status: "active" }).success).toBe(true);
+    expect(adminUserPatchSchema.safeParse({ status: "disabled" }).success).toBe(false);
+    expect(adminUserPatchSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("backupImportSchema", () => {
+  const id = "123e4567-e89b-42d3-a456-426614174000";
+
+  it("accepts a minimal export and rows that carry their own uuid", () => {
+    expect(backupImportSchema.safeParse({ todos: [], scheduleEvents: [] }).success).toBe(true);
+    const full = backupImportSchema.safeParse({
+      version: 1,
+      todos: [{ id, title: "t", done: true, completedAt: "2026-09-02T12:00:00.000Z" }],
+      scheduleEvents: [{ id, title: "e", date: "2026-09-02", time: "09:00" }],
+      replace: true,
+      confirm: "REPLACE ALL DATA",
+    });
+    expect(full.success).toBe(true);
+  });
+
+  it("requires both arrays and rejects rows without a valid uuid", () => {
+    expect(backupImportSchema.safeParse({ todos: [] }).success).toBe(false);
+    expect(backupImportSchema.safeParse({ scheduleEvents: [] }).success).toBe(false);
+    expect(backupImportSchema.safeParse({ todos: [{ title: "t" }], scheduleEvents: [] }).success).toBe(false);
+    expect(
+      backupImportSchema.safeParse({ todos: [{ id: "nope", title: "t" }], scheduleEvents: [] }).success
+    ).toBe(false);
+  });
+
+  it("rejects an unknown version", () => {
+    expect(backupImportSchema.safeParse({ version: 2, todos: [], scheduleEvents: [] }).success).toBe(false);
   });
 });

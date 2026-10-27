@@ -107,4 +107,21 @@ describe("parseQuickAddOffline", () => {
   it("returns null for text with nothing left to title", () => {
     expect(parseQuickAddOffline("tomorrow", TODAY)).toBeNull();
   });
+
+  it("reads relative offsets and numeric dates", () => {
+    expect(parseQuickAddOffline("project in 2 weeks", TODAY)).toEqual({ kind: "todo", title: "Project", dueDate: "2026-11-04" });
+    expect(parseQuickAddOffline("pay rent 10/31", TODAY)).toMatchObject({ dueDate: "2026-10-31" });
+    expect(parseQuickAddOffline("renew passport 1/5", TODAY)).toMatchObject({ dueDate: "2027-01-05" });
+  });
+
+  it("handles noon, 12am/12pm and 24-hour times", () => {
+    expect(parseQuickAddOffline("lunch at noon", TODAY)).toMatchObject({ kind: "event", date: TODAY, time: "12:00" });
+    expect(parseQuickAddOffline("call at 12am", TODAY)).toMatchObject({ time: "00:00" });
+    expect(parseQuickAddOffline("call at 12pm", TODAY)).toMatchObject({ time: "12:00" });
+    expect(parseQuickAddOffline("standup at 14:30", TODAY)).toMatchObject({ time: "14:30" });
+  });
+
+  it("ignores an impossible 24-hour time", () => {
+    expect(parseQuickAddOffline("thing at 25:00", TODAY)).toMatchObject({ kind: "todo" });
+  });
 });

@@ -61,4 +61,38 @@ describe("parseIcs", () => {
     const feed = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:20260905T140000Z\r\nEND:VEVENT\r\nEND:VCALENDAR";
     expect(parseIcs(feed)).toEqual([]);
   });
+  const wrap = (...lines: string[]) =>
+    ["BEGIN:VCALENDAR", "BEGIN:VEVENT", ...lines, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+
+  it("skips a VEVENT with a missing or unparseable DTSTART", () => {
+    expect(parseIcs(wrap("UID:event-assignment-1", "SUMMARY:No start"))).toEqual([]);
+    expect(parseIcs(wrap("UID:event-assignment-1", "SUMMARY:Bad", "DTSTART:tomorrow"))).toEqual([]);
+  });
+
+  it("treats a floating time (no trailing Z) as UTC", () => {
+    const items = parseIcs(wrap("UID:event-assignment-2", "SUMMARY:Floating", "DTSTART:20260905T140000"));
+    expect(items[0]).toMatchObject({ kind: "todo", dueAtISO: "2026-09-05T14:00:00Z" });
+  });
+
+  it("marks a calendar event with a date-only start as all-day, with no end", () => {
+    const items = parseIcs(wrap("UID:event-calendar-event-3", "SUMMARY:Holiday", "DTSTART;VALUE=DATE:20260907"));
+    expect(items[0]).toMatchObject({ kind: "event", startAtISO: "2026-09-07", allDay: true, endAtISO: undefined });
+  });
+
+  it("unescapes commas, semicolons, backslashes and \\n in summaries", () => {
+    const items = parseIcs(
+      wrap("UID:event-assignment-4", "SUMMARY:a\\, b\\; c\\\\d\\ne", "DTSTART:20260905T140000Z"),
+    );
+    expect(items[0]).toMatchObject({ title: "a, b; c\\d e" });
+  });
+
+  it("accepts bare LF line endings and lowercase property names", () => {
+    const feed = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nuid:event-assignment-5\nsummary:Lowercase\ndtstart:20260905T140000Z\nEND:VEVENT\nEND:VCALENDAR";
+    expect(parseIcs(feed)).toHaveLength(1);
+  });
+
+  it("ignores properties outside a VEVENT", () => {
+    const feed = "BEGIN:VCALENDAR\r\nUID:x\r\nSUMMARY:y\r\nDTSTART:20260905T140000Z\r\nEND:VCALENDAR";
+    expect(parseIcs(feed)).toEqual([]);
+  });
 });

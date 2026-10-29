@@ -5,6 +5,11 @@ import {
   backupImportSchema,
   passwordChangeSchema,
   canvasSyncRequestSchema,
+  dateSchema,
+  quickAddRequestSchema,
+  recurrenceSchema,
+  subtaskSchema,
+  timeSchema,
   signupSchema,
   eventCreateSchema,
   eventPatchSchema,
@@ -150,5 +155,60 @@ describe("backupImportSchema", () => {
 
   it("rejects an unknown version", () => {
     expect(backupImportSchema.safeParse({ version: 2, todos: [], scheduleEvents: [] }).success).toBe(false);
+  });
+});
+
+describe("dateSchema and timeSchema", () => {
+  it("accepts YYYY-MM-DD dates and rejects other shapes", () => {
+    expect(dateSchema.safeParse("2026-09-02").success).toBe(true);
+    for (const bad of ["2026-9-2", "09/02/2026", "2026-09-02T10:00", "", " 2026-09-02"]) {
+      expect(dateSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("accepts an empty string or HH:MM for times", () => {
+    expect(timeSchema.safeParse("").success).toBe(true);
+    expect(timeSchema.safeParse("09:30").success).toBe(true);
+    for (const bad of ["9:30", "0930", "09:30:00", "noon"]) {
+      expect(timeSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe("subtaskSchema", () => {
+  it("requires an id, a title string and a boolean done flag", () => {
+    expect(subtaskSchema.safeParse({ id: "a", title: "", done: false }).success).toBe(true);
+    expect(subtaskSchema.safeParse({ id: "", title: "x", done: false }).success).toBe(false);
+    expect(subtaskSchema.safeParse({ id: "a", title: "x", done: "no" }).success).toBe(false);
+    expect(subtaskSchema.safeParse({ id: "a", title: "x".repeat(501), done: true }).success).toBe(false);
+  });
+});
+
+describe("recurrenceSchema", () => {
+  it("accepts a rule with until and exceptions", () => {
+    const rule = { freq: "weekly", interval: 2, until: "2026-12-01", exceptions: ["2026-10-06"] };
+    expect(recurrenceSchema.parse(rule)).toEqual(rule);
+  });
+
+  it("rejects unknown frequencies and out-of-range or fractional intervals", () => {
+    expect(recurrenceSchema.safeParse({ freq: "yearly", interval: 1 }).success).toBe(false);
+    expect(recurrenceSchema.safeParse({ freq: "daily", interval: 0 }).success).toBe(false);
+    expect(recurrenceSchema.safeParse({ freq: "daily", interval: 366 }).success).toBe(false);
+    expect(recurrenceSchema.safeParse({ freq: "daily", interval: 1.5 }).success).toBe(false);
+    expect(recurrenceSchema.safeParse({ freq: "daily", interval: 1, until: "soon" }).success).toBe(false);
+  });
+});
+
+describe("quickAddRequestSchema", () => {
+  it("trims the text and rejects blank or oversized input", () => {
+    expect(quickAddRequestSchema.parse({ text: "  lunch at noon " }).text).toBe("lunch at noon");
+    expect(quickAddRequestSchema.safeParse({ text: "   " }).success).toBe(false);
+    expect(quickAddRequestSchema.safeParse({ text: "x".repeat(2001) }).success).toBe(false);
+  });
+
+  it("caps the history at 200 entries of 500 characters", () => {
+    expect(quickAddRequestSchema.safeParse({ text: "a", history: Array(200).fill("h") }).success).toBe(true);
+    expect(quickAddRequestSchema.safeParse({ text: "a", history: Array(201).fill("h") }).success).toBe(false);
+    expect(quickAddRequestSchema.safeParse({ text: "a", history: ["h".repeat(501)] }).success).toBe(false);
   });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   accountPatchSchema,
   adminUserPatchSchema,
+  attachedNoteSchema,
+  categorySchema,
   backupImportSchema,
   passwordChangeSchema,
   canvasSyncRequestSchema,
@@ -10,6 +12,7 @@ import {
   recurrenceSchema,
   subtaskSchema,
   timeSchema,
+  todoPrioritySchema,
   signupSchema,
   eventCreateSchema,
   eventPatchSchema,
@@ -210,5 +213,46 @@ describe("quickAddRequestSchema", () => {
     expect(quickAddRequestSchema.safeParse({ text: "a", history: Array(200).fill("h") }).success).toBe(true);
     expect(quickAddRequestSchema.safeParse({ text: "a", history: Array(201).fill("h") }).success).toBe(false);
     expect(quickAddRequestSchema.safeParse({ text: "a", history: ["h".repeat(501)] }).success).toBe(false);
+  });
+});
+
+describe("attachedNoteSchema", () => {
+  it("requires a non-empty id, keeps sourceNoteId and caps text at 10,000 characters", () => {
+    expect(attachedNoteSchema.parse({ id: "n1", text: "hi", sourceNoteId: "s" })).toEqual({
+      id: "n1",
+      text: "hi",
+      sourceNoteId: "s",
+    });
+    expect(attachedNoteSchema.safeParse({ id: "", text: "hi" }).success).toBe(false);
+    expect(attachedNoteSchema.safeParse({ id: "n1", text: "x".repeat(10_000) }).success).toBe(true);
+    expect(attachedNoteSchema.safeParse({ id: "n1", text: "x".repeat(10_001) }).success).toBe(false);
+  });
+});
+
+describe("categorySchema and todoPrioritySchema", () => {
+  it("accept only known values", () => {
+    expect(categorySchema.safeParse("school").success).toBe(true);
+    expect(categorySchema.safeParse("unknown").success).toBe(false);
+    expect(categorySchema.safeParse("toString").success).toBe(false);
+    expect(todoPrioritySchema.safeParse("medium").success).toBe(true);
+    expect(todoPrioritySchema.safeParse("urgent").success).toBe(false);
+  });
+});
+
+describe("todoCreateSchema and todoPatchSchema fields", () => {
+  it("rejects a malformed due date and unknown priority on create", () => {
+    expect(todoCreateSchema.safeParse({ title: "t", dueDate: "9/2/2026" }).success).toBe(false);
+    expect(todoCreateSchema.safeParse({ title: "t", priority: "urgent" }).success).toBe(false);
+  });
+
+  it("allows nulling optional fields on patch but not the title", () => {
+    const parsed = todoPatchSchema.parse({ description: null, priority: null, category: null, completedAt: null });
+    expect(parsed).toEqual({ description: null, priority: null, category: null, completedAt: null });
+    expect(todoPatchSchema.safeParse({ title: null }).success).toBe(false);
+  });
+
+  it("requires completedAt to be an ISO timestamp", () => {
+    expect(todoPatchSchema.safeParse({ completedAt: "2026-09-02T10:00:00Z" }).success).toBe(true);
+    expect(todoPatchSchema.safeParse({ completedAt: "yesterday" }).success).toBe(false);
   });
 });

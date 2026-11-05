@@ -70,6 +70,21 @@ describe("time helpers", () => {
     expect(minutesToTime(24 * 60)).toBe("23:59");
   });
 
+  it("handles midnight, rounds fractional minutes and zero-pads", () => {
+    expect(timeToMinutes("00:00")).toBe(0);
+    expect(timeToMinutes("23:59")).toBe(1439);
+    expect(minutesToTime(0)).toBe("00:00");
+    expect(minutesToTime(65.4)).toBe("01:05");
+    expect(minutesToTime(65.6)).toBe("01:06");
+    expect(minutesToTime(timeToMinutes("07:05"))).toBe("07:05");
+  });
+
+  it("floors the duration when the end time is before the start", () => {
+    expect(
+      eventDurationMinutes(ev({ id: "a", date: "2026-09-02", time: "10:00", endTime: "09:00" }))
+    ).toBe(15);
+  });
+
   it("computes duration with a default and a floor", () => {
     expect(eventDurationMinutes(ev({ id: "a", date: "2026-09-02", time: "" }))).toBe(0);
     expect(eventDurationMinutes(ev({ id: "a", date: "2026-09-02", time: "09:00" }))).toBe(15);

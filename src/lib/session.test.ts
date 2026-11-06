@@ -51,7 +51,41 @@ describe("session cookie", () => {
   });
 });
 
+describe("session secret and payload checks", () => {
+  it("throws when SESSION_SECRET is not set", async () => {
+    delete process.env.SESSION_SECRET;
+    const { createSessionCookieValue } = await load();
+    await expect(createSessionCookieValue(USER, 1)).rejects.toThrow("SESSION_SECRET");
+  });
+
+  it("rejects a validly signed payload that isn't user:<uuid>:<version>", async () => {
+    const { getSessionClaims } = await load();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode("test-secret-value"),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signed = async (payload: string) => {
+      const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+      return `${payload}.${Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+    };
+    expect(await getSessionClaims(await signed(`user:${USER}:7`))).toEqual({ userId: USER, version: 7 });
+    expect(await getSessionClaims(await signed("user:not-a-uuid:1"))).toBeNull();
+    expect(await getSessionClaims(await signed(`user:${USER}:`))).toBeNull();
+    expect(await getSessionClaims(await signed(`user:${USER}:1234567890`))).toBeNull();
+  });
+});
+
 describe("pending 2FA cookie", () => {
+  it("rejects a missing or malformed cookie", async () => {
+    const { verifyPendingCookieValue } = await load();
+    expect(await verifyPendingCookieValue(undefined, "123456")).toBeNull();
+    expect(await verifyPendingCookieValue("garbage", "123456")).toBeNull();
+    expect(await verifyPendingCookieValue("a.zz", "123456")).toBeNull();
+  });
+
   it("returns the user id for the matching code before it expires", async () => {
     const { createPendingCookieValue, verifyPendingCookieValue } = await load();
     const value = await createPendingCookieValue(USER, "123456");

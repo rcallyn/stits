@@ -121,6 +121,19 @@ describe("parseQuickAddOffline", () => {
     expect(parseQuickAddOffline("standup at 14:30", TODAY)).toMatchObject({ time: "14:30" });
   });
 
+  it("treats today's weekday name as next week and reads today/tonight", () => {
+    expect(parseQuickAddOffline("quiz wednesday", TODAY)).toMatchObject({ dueDate: "2026-10-28" });
+    expect(parseQuickAddOffline("quiz next friday", TODAY)).toMatchObject({ dueDate: "2026-10-30" });
+    expect(parseQuickAddOffline("finish essay today", TODAY)).toEqual({ kind: "todo", title: "Finish essay", dueDate: TODAY });
+    expect(parseQuickAddOffline("movie tonight at 8pm", TODAY)).toMatchObject({ kind: "event", date: TODAY, time: "20:00" });
+  });
+
+  it("uses the end meridiem for a range without one on the start, and rolls past dates to next year", () => {
+    expect(parseQuickAddOffline("study 10-11am", TODAY)).toMatchObject({ time: "10:00", endTime: "11:00" });
+    expect(parseQuickAddOffline("dinner 11pm-1am", TODAY)).toMatchObject({ time: "23:00", endTime: "01:00" });
+    expect(parseQuickAddOffline("party 10/20", TODAY)).toMatchObject({ dueDate: "2027-10-20" });
+  });
+
   it("ignores an impossible 24-hour time", () => {
     expect(parseQuickAddOffline("thing at 25:00", TODAY)).toMatchObject({ kind: "todo" });
   });

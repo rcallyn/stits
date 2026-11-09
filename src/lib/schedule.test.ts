@@ -198,6 +198,20 @@ describe("expandRecurringEvents", () => {
     ]);
   });
 
+  it("keeps a monthly series on the 31st, clamping short months without drifting", () => {
+    const events = [
+      ev({ id: "a", date: "2026-01-31", recurrence: { freq: "monthly", interval: 1 } }),
+    ];
+    const out = expandRecurringEvents(events, "2026-01-01", "2026-05-31");
+    expect(out.map((e) => e.date)).toEqual([
+      "2026-01-31",
+      "2026-02-28",
+      "2026-03-31",
+      "2026-04-30",
+      "2026-05-31",
+    ]);
+  });
+
   it("reaches a range far in the future without hitting the iteration guard", () => {
     const events = [
       ev({ id: "a", date: "2020-01-01", recurrence: { freq: "daily", interval: 1 } }),

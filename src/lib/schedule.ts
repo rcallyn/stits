@@ -193,7 +193,11 @@ function advanceDate(date: string, freq: RecurrenceFrequency, step: number): str
   const [y, m, d] = date.split("-").map(Number);
   if (freq === "daily") return shiftISODate(date, step);
   if (freq === "weekly") return shiftISODate(date, step * 7);
-  const next = new Date(y, m - 1 + step, d);
+  // Clamp to the target month's last day (Jan 31 + 1 month = Feb 28/29, not
+  // Mar 3). Callers advance from the series anchor, not the previous
+  // occurrence, so the day-of-month doesn't drift after a short month.
+  const daysInTarget = new Date(y, m - 1 + step + 1, 0).getDate();
+  const next = new Date(y, m - 1 + step, Math.min(d, daysInTarget));
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(
     next.getDate()
   ).padStart(2, "0")}`;
@@ -219,6 +223,7 @@ export function expandRecurringEvents(
     const effectiveEnd = until && until < rangeEnd ? until : rangeEnd;
     const exceptionSet = exceptions && exceptions.length ? new Set(exceptions) : null;
     let cursor = event.date;
+    let occurrence = 0; // monthly: occurrences are computed from the anchor
 
     // Jump close to rangeStart in one step instead of walking day-by-day from
     // the anchor — otherwise a daily series anchored a year ago wouldn't
@@ -237,7 +242,11 @@ export function expandRecurringEvents(
       if (cursor >= rangeStart && !(exceptionSet && exceptionSet.has(cursor))) {
         result.push({ ...event, id: `${event.id}::${cursor}`, date: cursor, isRecurringInstance: true });
       }
-      cursor = advanceDate(cursor, freq, step);
+      occurrence++;
+      cursor =
+        freq === "monthly"
+          ? advanceDate(event.date, freq, step * occurrence)
+          : advanceDate(cursor, freq, step);
       guard++;
     }
   }

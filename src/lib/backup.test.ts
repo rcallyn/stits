@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyBackup, buildLocalStorageBackup, isBackupData, type BackupData } from "@/lib/backup";
+import { applyBackup, buildLocalStorageBackup, buildServerBackup, isBackupData, type BackupData } from "@/lib/backup";
 import { REPLACE_CONFIRMATION } from "@/lib/schemas";
 
 afterEach(() => {
@@ -98,5 +98,44 @@ describe("applyBackup", () => {
       }),
     );
     await expect(applyBackup(data)).rejects.toThrow("Import failed.");
+  });
+});
+
+describe("buildServerBackup", () => {
+  function stubFetch(responses: Record<string, unknown>) {
+    const fetchMock = vi.fn(async (url: string) => ({ json: async () => responses[url] }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("collects todos, events and settings from the API", async () => {
+    const fetchMock = stubFetch({
+      "/api/todos": { todos: [{ id: "t1" }] },
+      "/api/events": { events: [{ id: "e1" }] },
+      "/api/settings": {
+        categoryColors: { school: "blue" },
+        categoryLabels: { school: "Uni" },
+        categoryOrder: ["school"],
+      },
+    });
+    const backup = await buildServerBackup();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(backup.version).toBe(1);
+    expect(Number.isNaN(Date.parse(backup.exportedAt))).toBe(false);
+    expect(backup.todos).toEqual([{ id: "t1" }]);
+    expect(backup.scheduleEvents).toEqual([{ id: "e1" }]);
+    expect(backup.categoryColors).toEqual({ school: "blue" });
+    expect(backup.categoryLabels).toEqual({ school: "Uni" });
+    expect(backup.categoryOrder).toEqual(["school"]);
+  });
+
+  it("falls back to empty values when fields are missing", async () => {
+    stubFetch({ "/api/todos": {}, "/api/events": {}, "/api/settings": {} });
+    const backup = await buildServerBackup();
+    expect(backup.todos).toEqual([]);
+    expect(backup.scheduleEvents).toEqual([]);
+    expect(backup.categoryColors).toEqual({});
+    expect(backup.categoryLabels).toEqual({});
+    expect(backup.categoryOrder).toEqual([]);
   });
 });

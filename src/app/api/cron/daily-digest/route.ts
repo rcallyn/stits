@@ -10,6 +10,7 @@ import { isOverdue, Todo } from "@/lib/todos";
 import { sendPushoverNotification } from "@/lib/pushover";
 import { quoteOfTheDay } from "@/lib/quotes";
 import { runCanvasSync } from "@/lib/canvasSync";
+import { timingSafeEqual } from "@/lib/session";
 
 // Vercel Cron jobs can only run at a fixed UTC time and Hobby-plan projects
 // can't run more often than daily, so a single trigger can't stay pinned to
@@ -115,7 +116,9 @@ async function buildDigest(userId: string, today: string) {
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  // Constant-time compare so response time doesn't leak how much of a guessed
+  // secret matched.
+  if (!secret || !timingSafeEqual(req.headers.get("authorization") ?? "", `Bearer ${secret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

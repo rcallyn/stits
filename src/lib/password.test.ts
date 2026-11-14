@@ -13,6 +13,17 @@ describe("verifyPassword", () => {
     expect(verifyPassword("anything", "not-a-real-hash")).toBe(false);
   });
 
+  it("rejects a hash with an empty digest instead of matching any password", () => {
+    expect(verifyPassword("anything", "scrypt$16384$8$1$aabbcc$")).toBe(false);
+    expect(verifyPassword("", "scrypt$16384$8$1$aabbcc$")).toBe(false);
+  });
+
+  it("rejects hashes with a wrong scheme or zero cost parameters", () => {
+    const hash = hashPassword("hunter2");
+    expect(verifyPassword("hunter2", hash.replace("scrypt", "bcrypt"))).toBe(false);
+    expect(verifyPassword("hunter2", "scrypt$0$8$1$aabbcc$ddee")).toBe(false);
+  });
+
   it("produces a distinct salt per call", () => {
     expect(hashPassword("x")).not.toBe(hashPassword("x"));
   });

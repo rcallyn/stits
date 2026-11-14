@@ -25,6 +25,8 @@ export function verifyPassword(candidate: string, stored: string): boolean {
   if (!N || !r || !p) return false;
 
   const expected = Buffer.from(hashHex, "hex");
+  // A zero-length digest would derive an empty key and "match" any password.
+  if (expected.length === 0) return false;
   let derived: Buffer;
   try {
     derived = scryptSync(candidate, Buffer.from(saltHex, "hex"), expected.length, { N, r, p });

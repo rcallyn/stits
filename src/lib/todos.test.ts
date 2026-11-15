@@ -53,6 +53,32 @@ describe("sortTodos", () => {
     ]);
   });
 
+  it("puts undated todos after dated ones of the same priority", () => {
+    const out = sortTodos([
+      todo({ id: "undated", priority: "medium" }),
+      todo({ id: "dated", priority: "medium", dueDate: "2026-09-30" }),
+    ]);
+    expect(out.map((t) => t.id)).toEqual(["dated", "undated"]);
+  });
+
+  it("keeps the original order for otherwise-equal todos", () => {
+    const out = sortTodos([
+      todo({ id: "a", dueDate: "2026-09-05" }),
+      todo({ id: "b", dueDate: "2026-09-05" }),
+      todo({ id: "c" }),
+      todo({ id: "d" }),
+    ]);
+    expect(out.map((t) => t.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("still ranks priority and due date among completed todos", () => {
+    const out = sortTodos([
+      todo({ id: "done-low", done: true, priority: "low" }),
+      todo({ id: "done-high", done: true, priority: "high" }),
+    ]);
+    expect(out.map((t) => t.id)).toEqual(["done-high", "done-low"]);
+  });
+
   it("does not mutate its input", () => {
     const input = [todo({ id: "b", done: true }), todo({ id: "a" })];
     sortTodos(input);
@@ -85,5 +111,18 @@ describe("splitVisible", () => {
     const { visible, hidden } = splitVisible(items, "2026-10-12");
     expect(visible.map((t) => t.id)).toEqual(["a", "b", "c", "d", "e"]);
     expect(hidden.map((t) => t.id)).toEqual(["f", "later"]);
+  });
+});
+
+describe("splitVisible with short lists", () => {
+  it("hides nothing when there are five or fewer items", () => {
+    const items = [{ id: "a" }, { id: "b", dueDate: "2026-12-01" }];
+    const { visible, hidden } = splitVisible(items, "2026-10-12");
+    expect(visible.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(hidden).toEqual([]);
+  });
+
+  it("returns empty lists for no todos", () => {
+    expect(splitVisible([], "2026-10-12")).toEqual({ visible: [], hidden: [] });
   });
 });

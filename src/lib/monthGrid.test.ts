@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthGrid, shiftMonth, startOfWeek, weekDates } from "@/lib/monthGrid";
+import { buildMonthGrid, monthLabel, shiftMonth, startOfWeek, weekDates, WEEKDAY_LETTERS } from "@/lib/monthGrid";
 
 describe("buildMonthGrid", () => {
   it("returns full Sun-Sat weeks padded with adjacent-month days", () => {
@@ -53,5 +53,39 @@ describe("startOfWeek / weekDates", () => {
       "2026-09-04",
       "2026-09-05",
     ]);
+  });
+});
+
+describe("weekDates boundaries", () => {
+  it("crosses year and leap-day boundaries", () => {
+    expect(weekDates("2026-01-01")[0]).toBe("2025-12-28");
+    expect(weekDates("2026-01-01")[6]).toBe("2026-01-03");
+    expect(weekDates("2024-03-01")).toContain("2024-02-29");
+  });
+
+  it("returns seven consecutive days across a daylight-saving change", () => {
+    const days = weekDates("2026-03-10"); // US spring-forward is 2026-03-08
+    expect(days).toHaveLength(7);
+    expect(days[0]).toBe("2026-03-08");
+    expect(days[6]).toBe("2026-03-14");
+  });
+});
+
+describe("shiftMonth large deltas", () => {
+  it("handles multi-year shifts in both directions", () => {
+    expect(shiftMonth(2026, 6, 24)).toEqual({ year: 2028, month: 6 });
+    expect(shiftMonth(2026, 6, -30)).toEqual({ year: 2023, month: 12 });
+  });
+});
+
+describe("monthLabel / WEEKDAY_LETTERS", () => {
+  it("includes the year in the label", () => {
+    expect(monthLabel(2026, 9)).toContain("2026");
+    expect(monthLabel(2026, 9)).not.toBe(monthLabel(2026, 10));
+  });
+
+  it("has one letter per weekday, starting on Sunday", () => {
+    expect(WEEKDAY_LETTERS).toHaveLength(7);
+    expect(WEEKDAY_LETTERS[0]).toBe("S");
   });
 });

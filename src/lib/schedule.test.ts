@@ -144,6 +144,57 @@ describe("layoutDayEvents", () => {
     expect(byId.b.columns).toBe(2);
     expect(byId.a.column).not.toBe(byId.b.column);
   });
+
+  it("returns nothing for no events", () => {
+    expect(layoutDayEvents([])).toEqual([]);
+  });
+
+  it("lays out unsorted input by start time", () => {
+    const positioned = layoutDayEvents([
+      ev({ id: "late", date: "2026-09-02", time: "11:00", endTime: "12:00" }),
+      ev({ id: "early", date: "2026-09-02", time: "09:00", endTime: "10:00" }),
+    ]);
+    expect(positioned.map((p) => p.event.id)).toEqual(["early", "late"]);
+    expect(positioned.every((p) => p.columns === 1 && p.column === 0)).toBe(true);
+  });
+
+  it("reuses a freed column within one overlap cluster", () => {
+    // a overlaps b and c, but b has ended by the time c starts.
+    const positioned = layoutDayEvents([
+      ev({ id: "a", date: "2026-09-02", time: "09:00", endTime: "12:00" }),
+      ev({ id: "b", date: "2026-09-02", time: "09:30", endTime: "10:00" }),
+      ev({ id: "c", date: "2026-09-02", time: "10:00", endTime: "11:00" }),
+    ]);
+    const byId = Object.fromEntries(positioned.map((p) => [p.event.id, p]));
+    expect(byId.a.column).toBe(0);
+    expect(byId.b.column).toBe(1);
+    expect(byId.c.column).toBe(1);
+    expect(positioned.every((p) => p.columns === 2)).toBe(true);
+  });
+
+  it("sizes each overlap cluster independently", () => {
+    const positioned = layoutDayEvents([
+      ev({ id: "a", date: "2026-09-02", time: "09:00", endTime: "10:00" }),
+      ev({ id: "b", date: "2026-09-02", time: "09:00", endTime: "10:00" }),
+      ev({ id: "c", date: "2026-09-02", time: "13:00", endTime: "14:00" }),
+    ]);
+    const byId = Object.fromEntries(positioned.map((p) => [p.event.id, p]));
+    expect(byId.a.columns).toBe(2);
+    expect(byId.b.columns).toBe(2);
+    expect(byId.c.columns).toBe(1);
+  });
+
+  it("treats an event without an end time as 15 minutes long", () => {
+    const positioned = layoutDayEvents([
+      ev({ id: "a", date: "2026-09-02", time: "09:00" }),
+      ev({ id: "b", date: "2026-09-02", time: "09:10", endTime: "09:30" }),
+      ev({ id: "c", date: "2026-09-02", time: "09:15", endTime: "09:30" }),
+    ]);
+    const byId = Object.fromEntries(positioned.map((p) => [p.event.id, p]));
+    // c starts exactly when a's default 15 minutes end, so it takes a's column.
+    expect(byId.c.column).toBe(byId.a.column);
+    expect(byId.b.column).not.toBe(byId.a.column);
+  });
 });
 
 describe("expandRecurringEvents", () => {
